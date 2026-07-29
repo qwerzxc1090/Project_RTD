@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTD Sim Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a12;
+            color: #ccc;
+            font-family: 'Oxanium', monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── 상단 바 ── */
+        .stats-bar {
+            background: linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 100%);
+            border-bottom: 2px solid #FF660044;
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            flex-shrink: 0;
+        }
+        .stats-bar .title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #FF6600;
+            white-space: nowrap;
+        }
+        .stats-bar .title span {
+            font-size: 11px;
+            color: #666;
+            font-weight: 400;
+        }
+        .stat-group {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            justify-content: center;
+        }
+        .stat-item { text-align: center; }
+        .stat-item .label {
+            font-size: 9px; color: #777;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .stat-item .value { font-size: 20px; font-weight: 700; }
+        .stat-item .value.total { color: #AAAAAA; }
+        .stat-item .value.clears { color: #44FF44; }
+        .stat-item .value.rate { color: #FF6600; font-size: 26px; }
+        .stat-item .value.fail { color: #FF5533; }
+        .stat-item .value.time { color: #55CC55; }
+
+        /* ── 컨트롤 ── */
+        .controls { display: flex; gap: 6px; flex-shrink: 0; }
+        .btn {
+            padding: 6px 12px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #ccc;
+            font-family: 'Oxanium', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #2a2a3e; border-color: #FF6600; color: #FF6600; }
+        .btn.start { border-color: #44FF4466; color: #44FF44; }
+        .btn.start:hover { border-color: #44FF44; background: #152a15; }
+        .btn.danger { border-color: #FF333344; }
+        .btn.danger:hover { border-color: #FF3333; color: #FF3333; background: #2a1515; }
+
+        /* 모드 선택 토글 */
+        .mode-toggle { display: flex; gap: 0; }
+        .mode-btn {
+            padding: 6px 14px;
+            border: 1px solid #444;
+            background: #111;
+            color: #666;
+            font-family: 'Oxanium', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn:first-child { border-radius: 6px 0 0 6px; }
+        .mode-btn:last-child { border-radius: 0 6px 6px 0; }
+        .mode-btn:not(:first-child):not(:last-child) { border-radius: 0; }
+        .mode-btn.active {
+            background: #1a1a3e;
+            color: #FF6600;
+            border-color: #FF6600;
+        }
+
+        /* ── 그리드 ── */
+        .grid {
+            flex: 1;
+            display: grid;
+            gap: 2px;
+            background: #222;
+            min-height: 0;
+        }
+        .grid.mode-1 {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+        .grid.mode-2 {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr;
+        }
+        .grid.mode-4 {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+        }
+        .cell {
+            position: relative;
+            background: #0a0a12;
+            overflow: hidden;
+        }
+        .cell iframe { width: 100%; height: 100%; border: none; }
+        .cell .instance-label {
+            position: absolute; top: 4px; right: 8px;
+            font-size: 11px; color: #FF660088; font-weight: 700;
+            z-index: 10; pointer-events: none; text-shadow: 0 0 4px #000;
+        }
+        .cell .instance-stat {
+            position: absolute; bottom: 4px; right: 8px;
+            font-size: 10px; color: #888;
+            z-index: 10; pointer-events: none; text-shadow: 0 0 4px #000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="stats-bar">
+    <div class="title">
+        🎮 Sim Dashboard<br>
+        <span id="mode-label">1 instance</span>
+    </div>
+
+    <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-1-btn" onclick="setMode(1)">×1</button>
+        <button class="mode-btn" id="mode-2-btn" onclick="setMode(2)">×2</button>
+        <button class="mode-btn" id="mode-4-btn" onclick="setMode(4)">×4</button>
+    </div>
+
+    <div class="stat-group">
+        <div class="stat-item">
+            <div class="label">총 실행</div>
+            <div class="value total" id="st-total">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="label">클리어</div>
+            <div class="value clears" id="st-clears">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="label">클리어율</div>
+            <div class="value rate" id="st-rate">0%</div>
+        </div>
+        <div class="stat-item">
+            <div class="label">실패 평균</div>
+            <div class="value fail" id="st-fail">R-</div>
+        </div>
+        <div class="stat-item">
+            <div class="label">평균 시간</div>
+            <div class="value time" id="st-time">00:00</div>
+        </div>
+        <div class="stat-item">
+            <div class="label">클리어 점수</div>
+            <div class="value clears" id="st-gs-clear">-</div>
+        </div>
+        <div class="stat-item">
+            <div class="label">오버 점수</div>
+            <div class="value fail" id="st-gs-fail">-</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn start" onclick="startAll()">▶ 시작</button>
+        <button class="btn danger" onclick="resetAll()">🗑 초기화</button>
+    </div>
+</div>
+
+<div class="grid mode-1" id="grid"></div>
+
+<script>
+    var currentMode = 1;
+
+    function setMode(mode) {
+        if (mode === currentMode) return;
+        currentMode = mode;
+
+        // 토글 UI
+        document.getElementById('mode-1-btn').className = 'mode-btn' + (mode === 1 ? ' active' : '');
+        document.getElementById('mode-2-btn').className = 'mode-btn' + (mode === 2 ? ' active' : '');
+        document.getElementById('mode-4-btn').className = 'mode-btn' + (mode === 4 ? ' active' : '');
+        document.getElementById('mode-label').textContent = mode + ' instance' + (mode > 1 ? 's' : '');
+
+        buildGrid();
+        updateStats();
+    }
+
+    function buildGrid() {
+        var grid = document.getElementById('grid');
+        grid.className = 'grid mode-' + currentMode;
+        grid.innerHTML = '';
+
+        for (var i = 1; i <= currentMode; i++) {
+            var cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.innerHTML =
+                '<div class="instance-label">#' + i + '</div>' +
+                '<div class="instance-stat" id="is-' + i + '">-</div>' +
+                '<iframe id="sim-' + i + '" src="index.html?sim=' + i + '"></iframe>';
+            grid.appendChild(cell);
+        }
+    }
+
+    function readResults(id) {
+        try {
+            return JSON.parse(localStorage.getItem('rtd_simResults_' + id) || '[]');
+        } catch(e) { return []; }
+    }
+
+    function fmtTime(sec) {
+        var m = Math.floor(sec / 60), s = sec % 60;
+        return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function updateStats() {
+        var allResults = [];
+        for (var i = 1; i <= currentMode; i++) {
+            var r = readResults(i);
+            allResults = allResults.concat(r);
+
+            var el = document.getElementById('is-' + i);
+            if (el) {
+                var t = r.length;
+                var c = r.filter(function(x){ return x.win; }).length;
+                var rate = t > 0 ? Math.round(c / t * 100) : 0;
+                el.textContent = t + '회 | ' + rate + '%';
+            }
+        }
+
+        var total = allResults.length;
+        var wins = allResults.filter(function(r) { return r.win; });
+        var fails = allResults.filter(function(r) { return !r.win; });
+        var clears = wins.length;
+        var rate = total > 0 ? Math.round(clears / total * 100) : 0;
+        var avgFail = fails.length > 0
+            ? Math.round(fails.reduce(function(a,r){ return a + r.round; }, 0) / fails.length) : 0;
+        var avgTime = total > 0
+            ? Math.round(allResults.reduce(function(a,r){ return a + (r.time || 0); }, 0) / total) : 0;
+
+        var winsGs = wins.filter(function(r){ return r.gs > 0; });
+        var failsGs = fails.filter(function(r){ return r.gs > 0; });
+        var avgGsClear = winsGs.length > 0
+            ? Math.round(winsGs.reduce(function(a,r){ return a + r.gs; }, 0) / winsGs.length) : 0;
+        var avgGsFail = failsGs.length > 0
+            ? Math.round(failsGs.reduce(function(a,r){ return a + r.gs; }, 0) / failsGs.length) : 0;
+
+        document.getElementById('st-total').textContent = total;
+        document.getElementById('st-clears').textContent = clears;
+        document.getElementById('st-rate').textContent = rate + '%';
+        document.getElementById('st-fail').textContent = 'R' + (avgFail || '-');
+        document.getElementById('st-time').textContent = fmtTime(avgTime);
+        document.getElementById('st-gs-clear').textContent = avgGsClear > 0 ? avgGsClear.toLocaleString() : '-';
+        document.getElementById('st-gs-fail').textContent = avgGsFail > 0 ? avgGsFail.toLocaleString() : '-';
+    }
+
+    function startAll() {
+        try {
+            localStorage.setItem('rtd_devMode', '1');
+            localStorage.setItem('rtd_autoGacha', '1');
+            for (var i = 1; i <= currentMode; i++) {
+                localStorage.setItem('rtd_simAutoRestart_' + i, '1');
+            }
+            localStorage.setItem('rtd_simAutoRestart', '1');
+        } catch(e) {}
+        for (var j = 1; j <= currentMode; j++) {
+            var f = document.getElementById('sim-' + j);
+            if (f) f.contentWindow.location.reload();
+        }
+    }
+
+    function resetAll() {
+        var label = currentMode === 1 ? '시뮬레이션 기록을' : currentMode + '개 인스턴스의 모든 기록을';
+        if (!confirm(label + ' 초기화할까요?')) return;
+        for (var i = 1; i <= 4; i++) {
+            try { localStorage.removeItem('rtd_simResults_' + i); } catch(e) {}
+        }
+        updateStats();
+        for (var j = 1; j <= currentMode; j++) {
+            var f = document.getElementById('sim-' + j);
+            if (f) f.contentWindow.location.reload();
+        }
+    }
+
+    // 초기화
+    buildGrid();
+    setInterval(updateStats, 2000);
+    updateStats();
+</script>
+
+</body>
+</html>

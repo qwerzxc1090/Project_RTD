@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTD 데이터 에디터</title>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0a0a1a;--panel:#111120;--border:#2a2a4e;--accent:#FF6600;
+  --save:#44cc44;--reset:#cc4444;--text:#e0e0e0;--dim:#888;
+  --input-bg:#0a0a18;--input-border:#333;--row-h:32px;
+}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Oxanium',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
+
+/* ─── Header ─── */
+.header{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:16px;flex-shrink:0;}
+.header h1{font-size:18px;font-weight:700;color:var(--accent);}
+.header .ver{font-size:11px;color:var(--dim);}
+
+/* ─── Tabs ─── */
+.tab-bar{display:flex;background:var(--panel);border-bottom:2px solid var(--border);flex-shrink:0;overflow-x:auto;}
+.tab-btn{padding:10px 22px;font-family:inherit;font-size:13px;font-weight:600;background:transparent;color:var(--dim);border:none;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap;}
+.tab-btn:hover{color:var(--text);background:rgba(255,102,0,.05);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(255,102,0,.08);}
+
+/* ─── Content ─── */
+.tab-content{flex:1;overflow:hidden;display:none;flex-direction:column;}
+.tab-content.active{display:flex;}
+.scroll-area{flex:1;overflow:auto;padding:16px 20px 20px;}
+
+/* ─── Sections ─── */
+.section{margin-bottom:24px;}
+.section-title{font-size:14px;font-weight:700;color:var(--accent);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+
+/* ─── Form Row ─── */
+.form-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;min-height:var(--row-h);}
+.form-row label{width:160px;font-size:12px;color:var(--dim);flex-shrink:0;}
+.form-row input,.form-row select{font-family:inherit;font-size:12px;background:var(--input-bg);color:var(--text);border:1px solid var(--input-border);border-radius:4px;padding:5px 8px;width:160px;}
+.form-row input:focus,.form-row select:focus{outline:none;border-color:var(--accent);}
+.form-row .unit{font-size:11px;color:var(--dim);margin-left:4px;}
+.form-row .pct{font-size:11px;color:#aaa;min-width:50px;text-align:right;}
+.sum-row{padding:6px 0;font-size:13px;font-weight:600;}
+.sum-row.ok{color:var(--save);}
+.sum-row.err{color:var(--reset);}
+
+/* ─── Tables ─── */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:6px;}
+table{width:100%;border-collapse:collapse;min-width:700px;}
+thead{position:sticky;top:0;z-index:2;}
+th{background:#1a1a30;color:var(--accent);font-size:11px;font-weight:600;padding:6px 8px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;}
+td{padding:3px 6px;border-bottom:1px solid rgba(42,42,78,.4);height:var(--row-h);vertical-align:middle;}
+td input,td select{font-family:inherit;font-size:11px;background:var(--input-bg);color:var(--text);border:1px solid var(--input-border);border-radius:3px;padding:3px 6px;width:100%;}
+td input:focus,td select:focus{outline:none;border-color:var(--accent);}
+td input[readonly]{color:var(--dim);background:transparent;border-color:transparent;cursor:default;}
+td .calc{color:var(--dim);font-style:italic;font-size:11px;}
+tr.boss-row{background:rgba(255,50,50,.1);border-left:3px solid #ff3232;}
+tr.boss-row td:first-child{padding-left:10px;}
+tr.duration-row{background:rgba(0,200,80,.07);border-left:3px solid #00cc50;}
+input.dim-cell, input:disabled.dim-cell{opacity:0.25;background:transparent;cursor:not-allowed;}
+input:disabled{opacity:0.35;cursor:not-allowed;}
+
+/* tier row colors */
+tr.tier-normal{background:rgba(136,136,136,.06);}
+tr.tier-rare{background:rgba(34,139,34,.06);}
+tr.tier-ancient{background:rgba(153,0,204,.06);}
+tr.tier-relic{background:rgba(255,127,0,.06);}
+tr.tier-saga{background:rgba(192,192,192,.06);}
+tr.tier-legend{background:rgba(255,224,0,.06);}
+tr.tier-epic{background:rgba(64,224,208,.06);}
+tr.tier-myth{background:rgba(255,51,0,.06);}
+tr.tier-primordial{background:rgba(0,255,255,.06);}
+
+/* ─── Bottom Bar ─── */
+.bottom-bar{flex-shrink:0;background:var(--panel);border-top:2px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.bottom-bar button{font-family:inherit;font-size:12px;font-weight:600;padding:8px 18px;border:none;border-radius:5px;cursor:pointer;transition:filter .15s;}
+.bottom-bar button:hover{filter:brightness(1.2);}
+.btn-save{background:var(--save);color:#000;}
+.btn-reset{background:var(--reset);color:#fff;}
+.btn-copy{background:#3366cc;color:#fff;}
+.btn-paste{background:#8844aa;color:#fff;}
+.status-msg{font-size:12px;margin-left:auto;transition:opacity .3s;}
+.status-msg.ok{color:var(--save);}
+.status-msg.err{color:var(--reset);}
+
+/* type affinity table */
+.affinity-tbl{width:auto;min-width:auto;}
+.affinity-tbl td,.affinity-tbl th{padding:6px 14px;text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🛠️ RTD 데이터 에디터</h1>
+  <span class="ver">v3.0 — 통합 에디터</span>
+</div>
+
+<div class="tab-bar" id="tabBar"></div>
+
+<!-- Tab 1: System Rules -->
+<div class="tab-content" id="tab-system">
+  <div class="scroll-area" id="systemArea"></div>
+</div>
+
+<!-- Tab 2: Tower Stats -->
+<div class="tab-content" id="tab-tower">
+  <div class="scroll-area" id="towerArea"></div>
+</div>
+
+<!-- Tab 3: Projectile/Skills -->
+<div class="tab-content" id="tab-skill">
+  <div class="scroll-area" id="skillArea"></div>
+</div>
+
+<!-- Tab: Monster -->
+<div class="tab-content" id="tab-monster">
+  <div class="scroll-area" id="monsterArea"></div>
+</div>
+
+<!-- Tab 4: Stages -->
+<div class="tab-content" id="tab-stage">
+  <div class="scroll-area" id="stageArea"></div>
+</div>
+
+<!-- Tab 5: DPS MODE -->
+<div class="tab-content" id="tab-dps">
+  <div class="scroll-area" id="dpsArea"></div>
+</div>
+
+<div class="bottom-bar">
+  <button class="btn-save" onclick="saveCurrentTab()">💾 저장</button>
+  <button class="btn-reset" onclick="resetCurrentTab()">↩ 기본값</button>
+  <button class="btn-reset" onclick="resetAllTabs()" style="background:#c0392b;" title="모든 탭의 localStorage를 삭제하고 최신 DEFAULT 데이터로 새로 로드합니다">🗑 전체 초기화</button>
+  <button class="btn-copy" onclick="copyJSON()">📋 JSON 복사</button>
+  <button class="btn-paste" onclick="pasteJSON()">📥 JSON 붙여넣기</button>
+  <button class="btn-apply" onclick="applyToCode()" style="background:#00bcd4;color:#000;font-weight:bold;">🚀 파일에 영구 적용</button>
+  <span class="status-msg" id="statusMsg"></span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// DEFAULT DATA
+// ═══════════════════════════════════════════════
+const DEFAULT_CONFIG = {
+  INITIAL_GOLD: 1000,
+  GACHA_COST: 100,
+  ROUND_BONUS_MULTIPLIER: 0,
+  INITIAL_LIVES: 50,
+  MAX_MONSTERS: 50,
+  TOTAL_ROUNDS: 50,
+  SPAWN_INTERVAL: 2806,
+  CRITICAL_DAMAGE_RATIO: 0.5,
+  BETWEEN_ROUND_DELAY: 1000,
+  BETWEEN_ROUND_DELAY_BOSS_START: 3000,
+  BETWEEN_ROUND_DELAY_BOSS_END: 3000,
+  GACHA_RATES: {
+    normal: 50000, rare: 33100, ancient: 10200, relic: 5100,
+    saga: 800, legend: 500, epic: 200, myth: 80, primordial: 19
+  },
+  TYPE_AFFINITY: {
+    normal:    { small: 1.00, general: 1.00, large: 1.00 },
+    vibration: { small: 1.00, general: 0.50, large: 0.25 },
+    explosive: { small: 0.50, general: 0.75, large: 1.00 }
+  }
+};
+
+const DEFAULT_UNITS = [
+  // ── 기본 타워 (27개) ──────────────────────────────────────────────────
+  {id:"n1", name:"병사", tier:"normal", attackType:"normal", damage: 51, attackSpeed:1000, range:120, skillId:1, gradeScore:100, gachaAvailable:true, criticalRate:500},
+  {id:"n2", name:"폭파병", tier:"normal", attackType:"explosive", damage: 74, attackSpeed:1300, range:100, skillId:3, gradeScore:73, gachaAvailable:true, criticalRate:500},
+  {id:"n3", name:"진동병", tier:"normal", attackType:"vibration", damage: 81, attackSpeed:700, range:132, skillId:3, gradeScore:126, gachaAvailable:true, criticalRate:500},
+  {id:"r1", name:"기사", tier:"rare", attackType:"normal", damage: 74, attackSpeed:900, range:130, skillId:2, gradeScore:152, gachaAvailable:true, criticalRate:500},
+  {id:"r2", name:"포병", tier:"rare", attackType:"explosive", damage: 111, attackSpeed:1170, range:110, skillId:3, gradeScore:118, gachaAvailable:true, criticalRate:500},
+  {id:"r3", name:"음파사", tier:"rare", attackType:"vibration", damage: 114, attackSpeed:630, range:143, skillId:1, gradeScore:190, gachaAvailable:true, criticalRate:500},
+  {id:"a1", name:"마법사", tier:"ancient", attackType:"normal", damage: 145, attackSpeed:800, range:145, skillId:2, gradeScore:334, gachaAvailable:true, criticalRate:500},
+  {id:"a2", name:"화염포", tier:"ancient", attackType:"explosive", damage: 225, attackSpeed:1040, range:123, skillId:1, gradeScore:261, gachaAvailable:true, criticalRate:500},
+  {id:"a3", name:"진동사", tier:"ancient", attackType:"vibration", damage: 232, attackSpeed:560, range:160, skillId:1, gradeScore:421, gachaAvailable:true, criticalRate:500},
+  {id:"e1", name:"성기사", tier:"relic", attackType:"normal", damage: 251, attackSpeed:720, range:160, skillId:1, gradeScore:669, gachaAvailable:true, criticalRate:500},
+  {id:"e2", name:"포격사", tier:"relic", attackType:"explosive", damage: 390, attackSpeed:936, range:136, skillId:3, gradeScore:525, gachaAvailable:true, criticalRate:500},
+  {id:"e3", name:"공명사", tier:"relic", attackType:"vibration", damage: 399, attackSpeed:504, range:176, skillId:3, gradeScore:841, gachaAvailable:true, criticalRate:500},
+  {id:"s1", name:"대마법사", tier:"saga", attackType:"normal", damage:1131, attackSpeed:600, range:190, skillId:3, gradeScore:4769, gachaAvailable:true, criticalRate:500},
+  {id:"s2", name:"파괴자", tier:"saga", attackType:"explosive", damage:1751, attackSpeed:780, range:162, skillId:2, gradeScore:3754, gachaAvailable:true, criticalRate:500},
+  {id:"s3", name:"공명자", tier:"saga", attackType:"vibration", damage:1776, attackSpeed:420, range:209, skillId:2, gradeScore:5996, gachaAvailable:true, criticalRate:500},
+  {id:"l1", name:"전설 전사", tier:"legend", attackType:"normal", damage:1557, attackSpeed:550, range:208, skillId:1, gradeScore:6913, gachaAvailable:true, criticalRate:500},
+  {id:"l2", name:"전설 포격", tier:"legend", attackType:"explosive", damage:2411, attackSpeed:715, range:177, skillId:2, gradeScore:5438, gachaAvailable:true, criticalRate:500},
+  {id:"l3", name:"전설 음률", tier:"legend", attackType:"vibration", damage:2481, attackSpeed:385, range:210, skillId:2, gradeScore:8695, gachaAvailable:true, criticalRate:500},
+  {id:"ep1", name:"에픽 현자", tier:"epic", attackType:"normal", damage:3215, attackSpeed:480, range:240, skillId:3, gradeScore:17629, gachaAvailable:true, criticalRate:500},
+  {id:"ep2", name:"에픽 파괴", tier:"epic", attackType:"explosive", damage:5709, attackSpeed:624, range:210, skillId:1, gradeScore:14242, gachaAvailable:true, criticalRate:500},
+  {id:"ep3", name:"에픽 공명", tier:"epic", attackType:"vibration", damage:4788, attackSpeed:350, range:264, skillId:2, gradeScore:22168, gachaAvailable:true, criticalRate:500},
+  {id:"m1", name:"신화 신관", tier:"myth", attackType:"normal", damage:6101, attackSpeed:400, range:280, skillId:3, gradeScore:45227, gachaAvailable:true, criticalRate:500},
+  {id:"m2", name:"신화 파괴", tier:"myth", attackType:"explosive", damage:11085, attackSpeed:520, range:238, skillId:2, gradeScore:35477, gachaAvailable:true, criticalRate:500},
+  {id:"m3", name:"신화 진동", tier:"myth", attackType:"vibration", damage:10892, attackSpeed:350, range:308, skillId:1, gradeScore:56842, gachaAvailable:true, criticalRate:500},
+  {id:"p1", name:"태초의 존재", tier:"primordial", attackType:"normal", damage:21112, attackSpeed:350, range:323, skillId:3, gradeScore:199458, gachaAvailable:true, criticalRate:500},
+  {id:"p2", name:"태초의 파괴", tier:"primordial", attackType:"explosive", damage:27954, attackSpeed:390, range:323, skillId:2, gradeScore:156493, gachaAvailable:true, criticalRate:500},
+  {id:"p3", name:"태초의 진동", tier:"primordial", attackType:"vibration", damage:47380, attackSpeed:350, range:323, skillId:3, gradeScore:250670, gachaAvailable:true, criticalRate:500},
+  // ── _연 타워 (27개) ──────────────────────────────────────────────────
+  {id:"n1_yeon", name:"병사_연", tier:"normal", attackType:"normal", damage: 31, attackSpeed:1400, range:120, skillId:4, gradeScore:100, gachaAvailable:true, criticalRate:500},
+  {id:"r1_yeon", name:"기사_연", tier:"rare", attackType:"normal", damage: 46, attackSpeed:1260, range:130, skillId:4, gradeScore:152, gachaAvailable:true, criticalRate:500},
+  {id:"a1_yeon", name:"마법사_연", tier:"ancient", attackType:"normal", damage: 95, attackSpeed:1120, range:145, skillId:4, gradeScore:334, gachaAvailable:true, criticalRate:500},
+  {id:"e1_yeon", name:"성기사_연", tier:"relic", attackType:"normal", damage: 156, attackSpeed:1008, range:160, skillId:4, gradeScore:669, gachaAvailable:true, criticalRate:500},
+  {id:"s1_yeon", name:"대마법사_연", tier:"saga", attackType:"normal", damage:708, attackSpeed:840, range:190, skillId:4, gradeScore:4769, gachaAvailable:true, criticalRate:500},
+  {id:"l1_yeon", name:"전설 전사_연", tier:"legend", attackType:"normal", damage:976, attackSpeed:770, range:208, skillId:4, gradeScore:6913, gachaAvailable:true, criticalRate:500},
+  {id:"ep1_yeon", name:"에픽 현자_연", tier:"epic", attackType:"normal", damage:2014, attackSpeed:672, range:240, skillId:4, gradeScore:17629, gachaAvailable:true, criticalRate:500},
+  {id:"m1_yeon", name:"신화 신관_연", tier:"myth", attackType:"normal", damage:3821, attackSpeed:560, range:280, skillId:4, gradeScore:45227, gachaAvailable:true, criticalRate:500},
+  {id:"p1_yeon", name:"태초의 존재_연", tier:"primordial", attackType:"normal", damage:11335, attackSpeed:420, range:323, skillId:4, gradeScore:199458, gachaAvailable:true, criticalRate:500},
+  {id:"n2_yeon", name:"폭파병_연", tier:"normal", attackType:"explosive", damage: 38, attackSpeed:1400, range:120, skillId:4, gradeScore:100, gachaAvailable:true, criticalRate:500},
+  {id:"r2_yeon", name:"포병_연", tier:"rare", attackType:"explosive", damage: 54, attackSpeed:1260, range:130, skillId:4, gradeScore:152, gachaAvailable:true, criticalRate:500},
+  {id:"a2_yeon", name:"화염포_연", tier:"ancient", attackType:"explosive", damage: 108, attackSpeed:1120, range:145, skillId:4, gradeScore:334, gachaAvailable:true, criticalRate:500},
+  {id:"e2_yeon", name:"포격사_연", tier:"relic", attackType:"explosive", damage: 188, attackSpeed:1008, range:160, skillId:4, gradeScore:669, gachaAvailable:true, criticalRate:500},
+  {id:"s2_yeon", name:"파괴자_연", tier:"saga", attackType:"explosive", damage:839, attackSpeed:840, range:190, skillId:4, gradeScore:4769, gachaAvailable:true, criticalRate:500},
+  {id:"l2_yeon", name:"전설 포격_연", tier:"legend", attackType:"explosive", damage:1156, attackSpeed:770, range:208, skillId:4, gradeScore:6913, gachaAvailable:true, criticalRate:500},
+  {id:"ep2_yeon", name:"에픽 파괴_연", tier:"epic", attackType:"explosive", damage:2385, attackSpeed:672, range:240, skillId:4, gradeScore:17629, gachaAvailable:true, criticalRate:500},
+  {id:"m2_yeon", name:"신화 파괴_연", tier:"myth", attackType:"explosive", damage:4526, attackSpeed:560, range:280, skillId:4, gradeScore:45227, gachaAvailable:true, criticalRate:500},
+  {id:"p2_yeon", name:"태초의 파괴_연", tier:"primordial", attackType:"explosive", damage:13424, attackSpeed:420, range:323, skillId:4, gradeScore:199458, gachaAvailable:true, criticalRate:500},
+  {id:"n3_yeon", name:"진동병_연", tier:"normal", attackType:"vibration", damage: 36, attackSpeed:1400, range:120, skillId:4, gradeScore:100, gachaAvailable:true, criticalRate:500},
+  {id:"r3_yeon", name:"음파사_연", tier:"rare", attackType:"vibration", damage: 52, attackSpeed:1260, range:130, skillId:4, gradeScore:152, gachaAvailable:true, criticalRate:500},
+  {id:"a3_yeon", name:"진동사_연", tier:"ancient", attackType:"vibration", damage: 106, attackSpeed:1120, range:145, skillId:4, gradeScore:334, gachaAvailable:true, criticalRate:500},
+  {id:"e3_yeon", name:"공명사_연", tier:"relic", attackType:"vibration", damage: 186, attackSpeed:1008, range:160, skillId:4, gradeScore:669, gachaAvailable:true, criticalRate:500},
+  {id:"s3_yeon", name:"공명자_연", tier:"saga", attackType:"vibration", damage:824, attackSpeed:840, range:190, skillId:4, gradeScore:4769, gachaAvailable:true, criticalRate:500},
+  {id:"l3_yeon", name:"전설 음률_연", tier:"legend", attackType:"vibration", damage:1137, attackSpeed:770, range:208, skillId:4, gradeScore:6913, gachaAvailable:true, criticalRate:500},
+  {id:"ep3_yeon", name:"에픽 공명_연", tier:"epic", attackType:"vibration", damage:2344, attackSpeed:672, range:240, skillId:4, gradeScore:17629, gachaAvailable:true, criticalRate:500},
+  {id:"m3_yeon", name:"신화 진동_연", tier:"myth", attackType:"vibration", damage:4447, attackSpeed:560, range:280, skillId:4, gradeScore:45227, gachaAvailable:true, criticalRate:500},
+  {id:"p3_yeon", name:"태초의 진동_연", tier:"primordial", attackType:"vibration", damage:13189, attackSpeed:420, range:323, skillId:4, gradeScore:199458, gachaAvailable:true, criticalRate:500},
+  // ── _독 타워 (27개) ──────────────────────────────────────────────────
+  {id:"n1_dok", name:"병사_독", tier:"normal", attackType:"normal", damage: 5, attackSpeed:2500, range:150, skillId:5, gradeScore:73, gachaAvailable:true, criticalRate:0},
+  {id:"r1_dok", name:"기사_독", tier:"rare", attackType:"normal", damage: 9, attackSpeed:2375, range:152, skillId:5, gradeScore:118, gachaAvailable:true, criticalRate:0},
+  {id:"a1_dok", name:"마법사_독", tier:"ancient", attackType:"normal", damage: 18, attackSpeed:2250, range:172, skillId:5, gradeScore:261, gachaAvailable:true, criticalRate:0},
+  {id:"e1_dok", name:"성기사_독", tier:"relic", attackType:"normal", damage: 32, attackSpeed:2125, range:174, skillId:5, gradeScore:525, gachaAvailable:true, criticalRate:0},
+  {id:"s1_dok", name:"대마법사_독", tier:"saga", attackType:"normal", damage:207, attackSpeed:2000, range:177, skillId:5, gradeScore:3754, gachaAvailable:true, criticalRate:0},
+  {id:"l1_dok", name:"전설 전사_독", tier:"legend", attackType:"normal", damage:296, attackSpeed:1875, range:189, skillId:5, gradeScore:5438, gachaAvailable:true, criticalRate:0},
+  {id:"ep1_dok", name:"에픽 현자_독", tier:"epic", attackType:"normal", damage:761, attackSpeed:1750, range:190, skillId:5, gradeScore:14242, gachaAvailable:true, criticalRate:0},
+  {id:"m1_dok", name:"신화 신관_독", tier:"myth", attackType:"normal", damage:1572, attackSpeed:1625, range:193, skillId:5, gradeScore:35477, gachaAvailable:true, criticalRate:0},
+  {id:"p1_dok", name:"태초의 존재_독", tier:"primordial", attackType:"normal", damage:5076, attackSpeed:1500, range:210, skillId:5, gradeScore:156493, gachaAvailable:true, criticalRate:0},
+  {id:"n2_dok",  name:"폭파병_독",     tier:"normal",     attackType:"explosive", damage: 6,    attackSpeed:2500, range:150, skillId:5, gradeScore:73,     gachaAvailable:true, criticalRate:0},
+  {id:"r2_dok",  name:"포병_독",       tier:"rare",       attackType:"explosive", damage: 12,    attackSpeed:2375, range:152, skillId:5, gradeScore:118,    gachaAvailable:true, criticalRate:0},
+  {id:"a2_dok",  name:"화염포_독",     tier:"ancient",    attackType:"explosive", damage: 24,    attackSpeed:2250, range:172, skillId:5, gradeScore:261,    gachaAvailable:true, criticalRate:0},
+  {id:"e2_dok",  name:"포격사_독",     tier:"relic",      attackType:"explosive", damage: 44,   attackSpeed:2125, range:174, skillId:5, gradeScore:525,    gachaAvailable:true, criticalRate:0},
+  {id:"s2_dok",  name:"파괴자_독",     tier:"saga",       attackType:"explosive", damage:263,   attackSpeed:2000, range:177, skillId:5, gradeScore:3754,   gachaAvailable:true, criticalRate:0},
+  {id:"l2_dok",  name:"전설 포격_독",  tier:"legend",     attackType:"explosive", damage:381,   attackSpeed:1875, range:189, skillId:5, gradeScore:5438,   gachaAvailable:true, criticalRate:0},
+  {id:"ep2_dok", name:"에픽 파괴_독",  tier:"epic",       attackType:"explosive", damage:972,  attackSpeed:1750, range:190, skillId:5, gradeScore:14242,  gachaAvailable:true, criticalRate:0},
+  {id:"m2_dok",  name:"신화 파괴_독",  tier:"myth",       attackType:"explosive", damage:2012,  attackSpeed:1625, range:193, skillId:5, gradeScore:35477,  gachaAvailable:true, criticalRate:0},
+  {id:"p2_dok",  name:"태초의 파괴_독",tier:"primordial", attackType:"explosive", damage:6494, attackSpeed:1500, range:210, skillId:5, gradeScore:156493, gachaAvailable:true, criticalRate:0},
+  {id:"n3_dok", name:"진동병_독", tier:"normal", attackType:"vibration", damage: 6, attackSpeed:2500, range:150, skillId:5, gradeScore:73, gachaAvailable:true, criticalRate:0},
+  {id:"r3_dok", name:"음파사_독", tier:"rare", attackType:"vibration", damage: 10, attackSpeed:2375, range:152, skillId:5, gradeScore:118, gachaAvailable:true, criticalRate:0},
+  {id:"a3_dok", name:"진동사_독", tier:"ancient", attackType:"vibration", damage: 21, attackSpeed:2250, range:172, skillId:5, gradeScore:261, gachaAvailable:true, criticalRate:0},
+  {id:"e3_dok", name:"공명사_독", tier:"relic", attackType:"vibration", damage: 42, attackSpeed:2125, range:174, skillId:5, gradeScore:525, gachaAvailable:true, criticalRate:0},
+  {id:"s3_dok", name:"공명자_독", tier:"saga", attackType:"vibration", damage:258, attackSpeed:2000, range:177, skillId:5, gradeScore:3754, gachaAvailable:true, criticalRate:0},
+  {id:"l3_dok", name:"전설 음률_독", tier:"legend", attackType:"vibration", damage:372, attackSpeed:1875, range:189, skillId:5, gradeScore:5438, gachaAvailable:true, criticalRate:0},
+  {id:"ep3_dok", name:"에픽 공명_독", tier:"epic", attackType:"vibration", damage:959, attackSpeed:1750, range:190, skillId:5, gradeScore:14242, gachaAvailable:true, criticalRate:0},
+  {id:"m3_dok", name:"신화 진동_독", tier:"myth", attackType:"vibration", damage:1976, attackSpeed:1625, range:193, skillId:5, gradeScore:35477, gachaAvailable:true, criticalRate:0},
+  {id:"p3_dok", name:"태초의 진동_독", tier:"primordial", attackType:"vibration", damage:6380, attackSpeed:1500, range:210, skillId:5, gradeScore:156493, gachaAvailable:true, criticalRate:0},
+  // ── _돈 타워 (27개, damage -20%) ─────────────────────────────────────
+  {id:"n1_don", name:"병사_돈", tier:"normal", attackType:"normal", damage: 36, attackSpeed:700, range:132, skillId:6, gradeScore:126, gachaAvailable:true, criticalRate:500},
+  {id:"r1_don", name:"기사_돈", tier:"rare", attackType:"normal", damage: 50, attackSpeed:630, range:143, skillId:7, gradeScore:190, gachaAvailable:true, criticalRate:500},
+  {id:"a1_don", name:"마법사_돈", tier:"ancient", attackType:"normal", damage: 104, attackSpeed:560, range:160, skillId:8, gradeScore:421, gachaAvailable:true, criticalRate:500},
+  {id:"e1_don", name:"성기사_돈", tier:"relic", attackType:"normal", damage: 178, attackSpeed:504, range:176, skillId:9, gradeScore:841, gachaAvailable:true, criticalRate:500},
+  {id:"s1_don", name:"대마법사_돈", tier:"saga", attackType:"normal", damage:796, attackSpeed:420, range:209, skillId:10, gradeScore:5996, gachaAvailable:true, criticalRate:500},
+  {id:"l1_don", name:"전설 전사_돈", tier:"legend", attackType:"normal", damage:1112, attackSpeed:385, range:210, skillId:11, gradeScore:8695, gachaAvailable:true, criticalRate:500},
+  {id:"ep1_don", name:"에픽 현자_돈", tier:"epic", attackType:"normal", damage:2145, attackSpeed:350, range:264, skillId:12, gradeScore:22168, gachaAvailable:true, criticalRate:500},
+  {id:"m1_don", name:"신화 신관_돈", tier:"myth", attackType:"normal", damage:4878, attackSpeed:350, range:308, skillId:13, gradeScore:56842, gachaAvailable:true, criticalRate:500},
+  {id:"p1_don", name:"태초의 존재_돈", tier:"primordial", attackType:"normal", damage:21226, attackSpeed:350, range:323, skillId:14, gradeScore:250670, gachaAvailable:true, criticalRate:500},
+  {id:"n2_don", name:"폭파병_돈", tier:"normal", attackType:"explosive", damage: 54, attackSpeed:700, range:132, skillId:6, gradeScore:126, gachaAvailable:true, criticalRate:500},
+  {id:"r2_don", name:"포병_돈", tier:"rare", attackType:"explosive", damage: 75, attackSpeed:630, range:143, skillId:7, gradeScore:190, gachaAvailable:true, criticalRate:500},
+  {id:"a2_don", name:"화염포_돈", tier:"ancient", attackType:"explosive", damage: 158, attackSpeed:560, range:160, skillId:8, gradeScore:421, gachaAvailable:true, criticalRate:500},
+  {id:"e2_don", name:"포격사_돈", tier:"relic", attackType:"explosive", damage: 269, attackSpeed:504, range:176, skillId:9, gradeScore:841, gachaAvailable:true, criticalRate:500},
+  {id:"s2_don", name:"파괴자_돈", tier:"saga", attackType:"explosive", damage:1205, attackSpeed:420, range:209, skillId:10, gradeScore:5996, gachaAvailable:true, criticalRate:500},
+  {id:"l2_don", name:"전설 포격_돈", tier:"legend", attackType:"explosive", damage:1684, attackSpeed:385, range:210, skillId:11, gradeScore:8695, gachaAvailable:true, criticalRate:500},
+  {id:"ep2_don", name:"에픽 파괴_돈", tier:"epic", attackType:"explosive", damage:3249, attackSpeed:350, range:264, skillId:12, gradeScore:22168, gachaAvailable:true, criticalRate:500},
+  {id:"m2_don", name:"신화 파괴_돈", tier:"myth", attackType:"explosive", damage:7389, attackSpeed:350, range:308, skillId:13, gradeScore:56842, gachaAvailable:true, criticalRate:500},
+  {id:"p2_don", name:"태초의 파괴_돈", tier:"primordial", attackType:"explosive", damage:32147, attackSpeed:350, range:323, skillId:14, gradeScore:250670, gachaAvailable:true, criticalRate:500},
+  {id:"n3_don",  name:"진동병_돈",     tier:"normal",     attackType:"vibration", damage: 65,    attackSpeed:700,   range:132, skillId:6,  gradeScore:126,    gachaAvailable:true, criticalRate:500},
+  {id:"r3_don",  name:"음파사_돈",     tier:"rare",       attackType:"vibration", damage: 90,    attackSpeed:630,   range:143, skillId:7,  gradeScore:190,    gachaAvailable:true, criticalRate:500},
+  {id:"a3_don",  name:"진동사_돈",     tier:"ancient",    attackType:"vibration", damage: 186,   attackSpeed:560,   range:160, skillId:8,  gradeScore:421,    gachaAvailable:true, criticalRate:500},
+  {id:"e3_don",  name:"공명사_돈",     tier:"relic",      attackType:"vibration", damage: 316,   attackSpeed:504,   range:176, skillId:9,  gradeScore:841,    gachaAvailable:true, criticalRate:500},
+  {id:"s3_don",  name:"공명자_돈",     tier:"saga",       attackType:"vibration", damage:1421,  attackSpeed:420,   range:209, skillId:10, gradeScore:5996,   gachaAvailable:true, criticalRate:500},
+  {id:"l3_don",  name:"전설 음률_돈",  tier:"legend",     attackType:"vibration", damage:1985,  attackSpeed:385,   range:210, skillId:11, gradeScore:8695,   gachaAvailable:true, criticalRate:500},
+  {id:"ep3_don", name:"에픽 공명_돈",  tier:"epic",       attackType:"vibration", damage:3829,  attackSpeed:350,   range:264, skillId:12, gradeScore:22168,  gachaAvailable:true, criticalRate:500},
+  {id:"m3_don",  name:"신화 진동_돈",  tier:"myth",       attackType:"vibration", damage:8712,  attackSpeed:350,   range:308, skillId:13, gradeScore:56842,  gachaAvailable:true, criticalRate:500},
+  {id:"p3_don",  name:"태초의 진동_돈",tier:"primordial", attackType:"vibration", damage:37902, attackSpeed:350,   range:323, skillId:14, gradeScore:250670, gachaAvailable:true, criticalRate:500}
+];
+
+
+
+
+const DEFAULT_SKILLS = {
+
+  "1":{id:1,name:"느린 사격",nameEn:"BASE_SHOT", category:"instant",desc:"느린 속도의 투사체를 발사한다.",projectileSpeed:3,displaySize:32,fallbackShape:"circle_large",imagePath:"assets/Art/projectiles/proj_basic_slow_01_01.png"},
+  "2":{id:2,name:"일반 사격",nameEn:"BASE_SHOT", category:"instant",desc:"보통 속도의 투사체를 발사한다.",projectileSpeed:5,displaySize:32,fallbackShape:"circle",imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png"},
+  "3":{id:3,name:"빠른 사격",nameEn:"BASE_SHOT", category:"instant",desc:"빠른 속도의 투사체를 발사한다.",projectileSpeed:7,displaySize:32,fallbackShape:"diamond",imagePath:"assets/Art/projectiles/proj_basic_fast_01_01.png"},
+  "4":{id:4,name:"연쇄 번개",nameEn:"CHAIN_ATTACK", category:"instant",desc:"적을 관통하며 연쇄적으로 튕기는 번개 투사체를 발사한다.",projectileSpeed:4,displaySize:32,fallbackShape:"lightning",fallbackColor:"0x00CCFF",imagePath:"assets/Art/projectiles/proj_chainLightning_01.png",bounceCount:5,bounceRange:0,bounceDamageMultiplier:0.85},
+  "5":{id:5, name:"맹독 중첩", nameEn:"POISON_DOT", category:"duration", desc:"투사체 적중 시 독을 중첩하여 지속 피해를 준다.", projectileSpeed:5, displaySize:32, fallbackShape:"diamond", fallbackColor:"0x00FF00", imagePath:"assets/Art/projectiles/proj_poison_01.png", poisonDuration:15000, maxPoisonStacks:20, tickRate:1000, poisonDamageRatio:1.0},
+  "6" :{id:6,  name:"앵벌이_일반", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:150, goldReward:18, goldRewardDelta:-20},
+  "7" :{id:7,  name:"앵벌이_레어", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:135, goldReward:20, goldRewardDelta:-19},
+  "8" :{id:8,  name:"앵벌이_고대", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:122, goldReward:24, goldRewardDelta:-18},
+  "9" :{id:9,  name:"앵벌이_유물", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:109, goldReward:28, goldRewardDelta:-17},
+  "10":{id:10, name:"앵벌이_서사", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:98,  goldReward:31, goldRewardDelta:-16},
+  "11":{id:11, name:"앵벌이_전설", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:89,  goldReward:36, goldRewardDelta:-15},
+  "12":{id:12, name:"앵벌이_에픽", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:80,  goldReward:41, goldRewardDelta:-14},
+  "13":{id:13, name:"앵벌이_신화", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:72,  goldReward:48, goldRewardDelta:-13},
+  "14":{id:14, name:"앵벌이_태초", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:65,  goldReward:55, goldRewardDelta:-12}
+};
+
+const DEFAULT_MONSTERS = [
+  {id:1,name:"몬스터 1R",type:"small",hp:1733,speed:0.9,goldReward:24,isBoss:false,imagePath:""},
+  {id:2,name:"몬스터 2R",type:"small",hp:1856,speed:1.83,goldReward:50,isBoss:false,imagePath:""},
+  {id:3,name:"몬스터 3R",type:"large",hp:1975,speed:1.22,goldReward:58,isBoss:false,imagePath:""},
+  {id:4,name:"몬스터 4R",type:"general",hp:2098,speed:1.83,goldReward:67,isBoss:false,imagePath:""},
+  {id:5,name:"몬스터 5R",type:"small",hp:2219,speed:1.07,goldReward:77,isBoss:false,imagePath:""},
+  {id:6,name:"몬스터 6R",type:"large",hp:2342,speed:0.9,goldReward:86,isBoss:false,imagePath:""},
+  {id:7,name:"몬스터 7R",type:"general",hp:2462,speed:0.9,goldReward:95,isBoss:false,imagePath:""},
+  {id:8,name:"보스 8R",type:"boss_small",hp:22151,speed:1.08,goldReward:245,isBoss:true,imagePath:""},
+  {id:9,name:"몬스터 9R",type:"small",hp:2584,speed:1.19,goldReward:114,isBoss:false,imagePath:""},
+  {id:10,name:"몬스터 10R",type:"large",hp:2705,speed:0.9,goldReward:123,isBoss:false,imagePath:""},
+  {id:11,name:"몬스터 11R",type:"general",hp:2762,speed:0.9,goldReward:132,isBoss:false,imagePath:""},
+  {id:12,name:"몬스터 12R",type:"small",hp:2819,speed:1.31,goldReward:141,isBoss:false,imagePath:""},
+  {id:13,name:"몬스터 13R",type:"large",hp:2876,speed:0.9,goldReward:150,isBoss:false,imagePath:""},
+  {id:14,name:"몬스터 14R",type:"general",hp:2933,speed:1.07,goldReward:160,isBoss:false,imagePath:""},
+  {id:15,name:"몬스터 15R",type:"small",hp:2990,speed:1.31,goldReward:169,isBoss:false,imagePath:""},
+  {id:16,name:"보스 16R",type:"boss_normal",hp:51675,speed:0.92,goldReward:458,isBoss:true,imagePath:""},
+  {id:17,name:"몬스터 17R",type:"large",hp:3105,speed:0.99,goldReward:187,isBoss:false,imagePath:""},
+  {id:18,name:"몬스터 18R",type:"small",hp:3162,speed:1.39,goldReward:197,isBoss:false,imagePath:""},
+  {id:19,name:"몬스터 19R",type:"general",hp:3219,speed:1.11,goldReward:206,isBoss:false,imagePath:""},
+  {id:20,name:"몬스터 20R",type:"large",hp:3276,speed:0.99,goldReward:214,isBoss:false,imagePath:""},
+  {id:21,name:"몬스터 21R",type:"small",hp:3333,speed:1.39,goldReward:224,isBoss:false,imagePath:""},
+  {id:22,name:"몬스터 22R",type:"general",hp:3435,speed:1.11,goldReward:234,isBoss:false,imagePath:""},
+  {id:23,name:"몬스터 23R",type:"large",hp:3539,speed:0.99,goldReward:242,isBoss:false,imagePath:""},
+  {id:24,name:"보스 24R",type:"boss_normal",hp:69021,speed:0.72,goldReward:736,isBoss:true,imagePath:""},
+  {id:25,name:"몬스터 25R",type:"small",hp:3643,speed:1.54,goldReward:261,isBoss:false,imagePath:""},
+  {id:26,name:"몬스터 26R",type:"large",hp:3745,speed:0.99,goldReward:270,isBoss:false,imagePath:""},
+  {id:27,name:"몬스터 27R",type:"general",hp:3850,speed:1.27,goldReward:279,isBoss:false,imagePath:""},
+  {id:28,name:"몬스터 28R",type:"small",hp:3952,speed:1.66,goldReward:288,isBoss:false,imagePath:""},
+  {id:29,name:"몬스터 29R",type:"general",hp:4056,speed:1.11,goldReward:298,isBoss:false,imagePath:""},
+  {id:30,name:"몬스터 30R",type:"large",hp:4158,speed:0.99,goldReward:307,isBoss:false,imagePath:""},
+  {id:31,name:"몬스터 31R",type:"general",hp:4262,speed:1.12,goldReward:316,isBoss:false,imagePath:""},
+  {id:32,name:"보스 32R",type:"boss_large",hp:94119,speed:0.81,goldReward:1065,isBoss:true,imagePath:""},
+  {id:33,name:"몬스터 33R",type:"small",hp:4366,speed:1.63,goldReward:334,isBoss:false,imagePath:""},
+  {id:34,name:"몬스터 34R",type:"general",hp:4468,speed:1.12,goldReward:344,isBoss:false,imagePath:""},
+  {id:35,name:"몬스터 35R",type:"large",hp:4572,speed:1.08,goldReward:353,isBoss:false,imagePath:""},
+  {id:36,name:"몬스터 36R",type:"general",hp:4676,speed:1.27,goldReward:362,isBoss:false,imagePath:""},
+  {id:37,name:"몬스터 37R",type:"large",hp:4780,speed:1.08,goldReward:371,isBoss:false,imagePath:""},
+  {id:38,name:"몬스터 38R",type:"small",hp:4882,speed:1.78,goldReward:381,isBoss:false,imagePath:""},
+  {id:39,name:"몬스터 39R",type:"general",hp:4985,speed:1.27,goldReward:390,isBoss:false,imagePath:""},
+  {id:40,name:"보스 40R",type:"boss_normal",hp:119214,speed:0.92,goldReward:1441,isBoss:true,imagePath:""},
+  {id:41,name:"몬스터 41R",type:"large",hp:5089,speed:1.08,goldReward:408,isBoss:false,imagePath:""},
+  {id:42,name:"몬스터 42R",type:"general",hp:5193,speed:1.42,goldReward:418,isBoss:false,imagePath:""},
+  {id:43,name:"몬스터 43R",type:"small",hp:5295,speed:1.93,goldReward:426,isBoss:false,imagePath:""},
+  {id:44,name:"몬스터 44R",type:"general",hp:5398,speed:1.37,goldReward:435,isBoss:false,imagePath:""},
+  {id:45,name:"몬스터 45R",type:"large",hp:5502,speed:1.08,goldReward:445,isBoss:false,imagePath:""},
+  {id:46,name:"몬스터 46R",type:"general",hp:5606,speed:1.52,goldReward:454,isBoss:false,imagePath:""},
+  {id:47,name:"몬스터 47R",type:"large",hp:5708,speed:1.08,goldReward:463,isBoss:false,imagePath:""},
+  {id:48,name:"보스 48R",type:"boss_small",hp:144310,speed:0.99,goldReward:2051,isBoss:true,imagePath:""},
+  {id:49,name:"몬스터 49R",type:"general",hp:5811,speed:1.4,goldReward:482,isBoss:false,imagePath:""},
+  {id:50,name:"보스 50R",type:"boss_large",hp:169406,speed:1.08,goldReward:4075,isBoss:true,imagePath:""}
+];
+
+
+const DEFAULT_WAVES = [
+  {round:1,monsterId:1,count:23,timeLimit:0,timeAttack:false,clearGoldBonus:10,spawnInterval:1800},
+  {round:2,monsterId:2,count:10,timeLimit:0,timeAttack:false,clearGoldBonus:12,spawnInterval:1800},
+  {round:3,monsterId:3,count:5,timeLimit:0,timeAttack:false,clearGoldBonus:14,spawnInterval:1800},
+  {round:4,monsterId:4,count:10,timeLimit:0,timeAttack:false,clearGoldBonus:16,spawnInterval:1750},
+  {round:5,monsterId:5,count:25,timeLimit:0,timeAttack:false,clearGoldBonus:19,spawnInterval:1750},
+  {round:6,monsterId:6,count:20,timeLimit:0,timeAttack:false,clearGoldBonus:21,spawnInterval:1750},
+  {round:7,monsterId:7,count:22,timeLimit:0,timeAttack:false,clearGoldBonus:23,spawnInterval:1750},
+  {round:8,monsterId:8,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1700},
+  {round:9,monsterId:9,count:25,timeLimit:0,timeAttack:false,clearGoldBonus:28,spawnInterval:1700},
+  {round:10,monsterId:10,count:27,timeLimit:0,timeAttack:false,clearGoldBonus:30,spawnInterval:1700},
+  {round:11,monsterId:11,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:33,spawnInterval:1700},
+  {round:12,monsterId:12,count:25,timeLimit:0,timeAttack:false,clearGoldBonus:35,spawnInterval:1650},
+  {round:13,monsterId:13,count:27,timeLimit:0,timeAttack:false,clearGoldBonus:37,spawnInterval:1650},
+  {round:14,monsterId:14,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:40,spawnInterval:1650},
+  {round:15,monsterId:15,count:27,timeLimit:0,timeAttack:false,clearGoldBonus:42,spawnInterval:1650},
+  {round:16,monsterId:16,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1600},
+  {round:17,monsterId:17,count:27,timeLimit:0,timeAttack:false,clearGoldBonus:46,spawnInterval:1600},
+  {round:18,monsterId:18,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:49,spawnInterval:1600},
+  {round:19,monsterId:19,count:25,timeLimit:0,timeAttack:false,clearGoldBonus:51,spawnInterval:1600},
+  {round:20,monsterId:20,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:53,spawnInterval:1550},
+  {round:21,monsterId:21,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:56,spawnInterval:1550},
+  {round:22,monsterId:22,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:58,spawnInterval:1550},
+  {round:23,monsterId:23,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:60,spawnInterval:1550},
+  {round:24,monsterId:24,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1500},
+  {round:25,monsterId:25,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:65,spawnInterval:1500},
+  {round:26,monsterId:26,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:67,spawnInterval:1500},
+  {round:27,monsterId:27,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:69,spawnInterval:1500},
+  {round:28,monsterId:28,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:72,spawnInterval:1450},
+  {round:29,monsterId:29,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:74,spawnInterval:1450},
+  {round:30,monsterId:30,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:76,spawnInterval:1450},
+  {round:31,monsterId:31,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:79,spawnInterval:1450},
+  {round:32,monsterId:32,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1400},
+  {round:33,monsterId:33,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:83,spawnInterval:1400},
+  {round:34,monsterId:34,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:86,spawnInterval:1400},
+  {round:35,monsterId:35,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:88,spawnInterval:1400},
+  {round:36,monsterId:36,count:36,timeLimit:0,timeAttack:false,clearGoldBonus:90,spawnInterval:1350},
+  {round:37,monsterId:37,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:92,spawnInterval:1350},
+  {round:38,monsterId:38,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:95,spawnInterval:1350},
+  {round:39,monsterId:39,count:36,timeLimit:0,timeAttack:false,clearGoldBonus:97,spawnInterval:1350},
+  {round:40,monsterId:40,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1300},
+  {round:41,monsterId:41,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:102,spawnInterval:1300},
+  {round:42,monsterId:42,count:38,timeLimit:0,timeAttack:false,clearGoldBonus:104,spawnInterval:1300},
+  {round:43,monsterId:43,count:36,timeLimit:0,timeAttack:false,clearGoldBonus:106,spawnInterval:1300},
+  {round:44,monsterId:44,count:36,timeLimit:0,timeAttack:false,clearGoldBonus:108,spawnInterval:1250},
+  {round:45,monsterId:45,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:111,spawnInterval:1250},
+  {round:46,monsterId:46,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:113,spawnInterval:1250},
+  {round:47,monsterId:47,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:115,spawnInterval:1250},
+  {round:48,monsterId:48,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1200},
+  {round:49,monsterId:49,count:10,timeLimit:0,timeAttack:false,clearGoldBonus:120,spawnInterval:1200},
+  {round:50,monsterId:50,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1200}
+];
+
+const DEFAULT_DPS_MODE = {
+  spawnInterval: 2400,
+  monsterSpeed: 0.9,
+  monsterHp: 9007199254740991,
+  goldReward: 0,
+  startGold: 0,
+  gachaEnabled: false,
+  types: [
+    {type:'general', count:4},
+    {type:'small',   count:4},
+    {type:'large',   count:4},
+    {type:'boss_normal', count:1},
+    {type:'boss_small',  count:1},
+    {type:'boss_large',  count:1}
+  ]
+};
+
+const TIERS = ['normal','rare','ancient','relic','saga','legend','epic','myth','primordial'];
+const TIER_LABELS = {normal:'일반',rare:'레어',ancient:'고대',relic:'유물',saga:'서사',legend:'전설',epic:'에픽',myth:'신화',primordial:'태초'};
+const ATK_TYPES = ['normal','explosive','vibration'];
+const ATK_LABELS = {normal:'일반',explosive:'폭발',vibration:'진동'};
+const SHAPES = ['circle','circle_large','diamond','lightning'];
+const SKILL_TYPES = ['BASE_SHOT','CHAIN_ATTACK','POISON_DOT','GOLD_FARM'];
+const MONSTER_TYPES = ['general','large','small','boss','boss_normal','boss_large','boss_small'];
+const MONSTER_TYPE_LABELS = {
+  small: '소형', large: '대형', general: '일반',
+  boss: '보스(레거시)',
+  boss_normal: '보스_일반', boss_large: '보스_대형', boss_small: '보스_소형'
+};
+const BOSS_ROUNDS = [8,16,24,32,40,48,49,50];
+
+const LS_KEYS = {
+  system: 'rtd_configOverride',
+  tower: 'rtd_unitData',
+  skill: 'rtd_skillData',
+  monster: 'rtd_monsterData',
+  stage: 'rtd_waveData',
+  dps: 'rtd_dpsModeData'
+};
+
+const TABS = [
+  {id:'system', label:'⚙️ 시스템 룰'},
+  {id:'tower',  label:'🗼 타워 능력치'},
+  {id:'skill',  label:'🎯 발사체(스킬)'},
+  {id:'monster', label:'💀 몬스터'},
+  {id:'stage',  label:'📋 스테이지'},
+  {id:'dps',    label:'📊 DPS MODE'}
+];
+
+let activeTab = 'system';
+
+// ═══════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════
+function deepClone(o){ return JSON.parse(JSON.stringify(o)); }
+function showStatus(msg, ok){
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status-msg ' + (ok ? 'ok' : 'err');
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.textContent=''; }, 3000);
+}
+function loadLS(key, fallback){
+  try{
+    const v = localStorage.getItem(key);
+    if (!v) return deepClone(fallback);
+    const saved = JSON.parse(v);
+
+    // 배열: 항목 수 비교 — localStorage < DEFAULT 이면 구버전으로 판단 → DEFAULT 사용
+    if (Array.isArray(fallback) && Array.isArray(saved) && saved.length < fallback.length) {
+      console.warn('[loadLS] 구버전 감지! ' + key + ': localStorage(' + saved.length + '개) < DEFAULT(' + fallback.length + '개) → DEFAULT로 자동 전환');
+      localStorage.removeItem(key);
+      return deepClone(fallback);
+    }
+
+    // 플레인 객체: DEFAULT를 베이스로 저장값으로 덮어쓰기 (신규 키가 localStorage에 없어도 DEFAULT 값으로 자동 채움)
+    if (!Array.isArray(fallback) && fallback !== null && typeof fallback === 'object') {
+      const merged = deepClone(fallback);
+      Object.keys(saved).forEach(k => { merged[k] = saved[k]; });
+      return merged;
+    }
+
+    return saved;
+  }
+  catch(e){ console.error('[loadLS] 오류:', key, e); return deepClone(fallback); }
+}
+
+// ═══════════════════════════════════════════════
+// TAB MANAGEMENT
+// ═══════════════════════════════════════════════
+function initTabs(){
+  const bar = document.getElementById('tabBar');
+  TABS.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (t.id === activeTab ? ' active' : '');
+    btn.textContent = t.label;
+    btn.dataset.tab = t.id;
+    btn.onclick = () => switchTab(t.id);
+    bar.appendChild(btn);
+  });
+}
+
+function switchTab(id){
+  activeTab = id;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-'+id));
+}
+
+// ═══════════════════════════════════════════════
+// TAB 1: SYSTEM RULES
+// ═══════════════════════════════════════════════
+function renderSystem(){
+  const cfg = loadLS(LS_KEYS.system, DEFAULT_CONFIG);
+  const area = document.getElementById('systemArea');
+
+  // Ensure nested objects
+  if(!cfg.GACHA_RATES) cfg.GACHA_RATES = deepClone(DEFAULT_CONFIG.GACHA_RATES);
+  if(!cfg.TYPE_AFFINITY) cfg.TYPE_AFFINITY = deepClone(DEFAULT_CONFIG.TYPE_AFFINITY);
+
+  const sections = [
+    { title:'💰 경제 시스템', fields:[
+      {key:'INITIAL_GOLD', label:'초기 골드', val:cfg.INITIAL_GOLD??500, type:'number'},
+      {key:'GACHA_COST', label:'뽑기 비용', val:cfg.GACHA_COST??50, type:'number'},
+      {key:'ROUND_BONUS_MULTIPLIER', label:'라운드 보너스 배율', val:cfg.ROUND_BONUS_MULTIPLIER??2.45, type:'number', step:'0.01'}
+    ]},
+    { title:'🧑 플레이어', fields:[
+      {key:'INITIAL_LIVES', label:'초기 생명력', val:cfg.INITIAL_LIVES??50, type:'number'},
+      {key:'MAX_MONSTERS', label:'최대 몬스터', val:cfg.MAX_MONSTERS??50, type:'number'}
+    ]},
+    { title:'🔄 라운드', fields:[
+      {key:'TOTAL_ROUNDS', label:'총 라운드', val:cfg.TOTAL_ROUNDS??50, type:'number'},
+      {key:'SPAWN_INTERVAL', label:'스폰 간격(ms)', val:cfg.SPAWN_INTERVAL??800, type:'number'},
+      {key:'BETWEEN_ROUND_DELAY',            label:'라운드 사이 딜레이 — 일반(ms)',      val:cfg.BETWEEN_ROUND_DELAY??1000,            type:'number'},
+      {key:'BETWEEN_ROUND_DELAY_BOSS_START', label:'라운드 사이 딜레이 — 보스 시작(ms)', val:cfg.BETWEEN_ROUND_DELAY_BOSS_START??3000, type:'number'},
+      {key:'BETWEEN_ROUND_DELAY_BOSS_END',   label:'라운드 사이 딜레이 — 보스 완료(ms)', val:cfg.BETWEEN_ROUND_DELAY_BOSS_END??3000,   type:'number'}
+    ]},
+    { title:'⚔️ 전투 시스템', fields:[
+      {key:'CRITICAL_DAMAGE_RATIO', label:'치명타 데미지 추가 비율', val:cfg.CRITICAL_DAMAGE_RATIO??0.5, type:'number', step:'0.01'}
+    ]}
+  ];
+
+  let html = '';
+
+  // Basic sections
+  sections.forEach(sec => {
+    html += `<div class="section"><div class="section-title">${sec.title}</div>`;
+    sec.fields.forEach(f => {
+      html += `<div class="form-row">
+        <label>${f.label}</label>
+        <input type="${f.type}" data-cfg="${f.key}" value="${f.val}" ${f.step?'step="'+f.step+'"':''}>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  // Gacha Rates
+  html += '<div class="section"><div class="section-title">🎰 가차 확률</div>';
+  const rateLabels = {normal:'일반',rare:'레어',ancient:'고대',relic:'유물',saga:'서사',legend:'전설',epic:'에픽',myth:'신화',primordial:'태초'};
+  TIERS.forEach(t => {
+    const v = cfg.GACHA_RATES[t] ?? DEFAULT_CONFIG.GACHA_RATES[t] ?? 0;
+    const total = Object.values(cfg.GACHA_RATES).reduce((a,b)=>a+b,0)||99999;
+    const pct = (v / total * 100).toFixed(4);
+    html += `<div class="form-row">
+      <label>${rateLabels[t]}</label>
+      <input type="number" step="1"      data-rate="${t}" value="${v}" style="width:120px">
+      <span class="pct" id="pct-${t}">${pct}%</span>
+    </div>`;
+  });
+  html += '<div class="sum-row" id="rateSum"></div></div>';
+
+  // Type Affinity
+  html += '<div class="section"><div class="section-title">⚔️ 타입 상성</div>';
+  html += '<div class="tbl-wrap"><table class="affinity-tbl"><thead><tr><th>타입</th><th>소형 배율</th><th>대형 배율</th><th>일반 배율</th></tr></thead><tbody>';
+  ['normal','explosive','vibration'].forEach(at => {
+    const aff = cfg.TYPE_AFFINITY[at] ?? DEFAULT_CONFIG.TYPE_AFFINITY[at];
+    const generalVal = aff.general !== undefined ? aff.general : 1.0;
+    html += `<tr>
+      <td style="font-weight:600">${ATK_LABELS[at]}</td>
+      <td><input type="number" step="0.1" data-aff="${at}-small" value="${aff.small}" style="width:80px"></td>
+      <td><input type="number" step="0.1" data-aff="${at}-large" value="${aff.large}" style="width:80px"></td>
+      <td><input type="number" step="0.1" data-aff="${at}-general" value="${generalVal}" style="width:80px"></td>
+    </tr>`;
+  });
+  html += '</tbody></table></div></div>';
+
+  // 보스 방어 테이블 (읽기 전용 참조)
+  html += '<div class="section"><div class="section-title">👑 보스 전용 방어 테이블 (읽기 전용 — config.js BOSS_EFFECTIVENESS)</div>';
+  html += '<div class="tbl-wrap"><table class="affinity-tbl"><thead><tr><th>공격타입</th><th>보스_소형</th><th>보스_대형</th><th>보스_일반</th></tr></thead><tbody>';
+  const BOSS_EFF = {
+    normal:    { boss_normal: 1.00, boss_large: 1.00, boss_small: 1.00 },
+    explosive: { boss_normal: 0.75, boss_large: 1.00, boss_small: 0.50 },
+    vibration: { boss_normal: 0.50, boss_large: 0.25, boss_small: 1.00 }
+  };
+  ['normal','explosive','vibration'].forEach(at => {
+    const b = BOSS_EFF[at];
+    html += `<tr>
+      <td style="font-weight:600">${ATK_LABELS[at]}</td>
+      <td style="color:${b.boss_small>1?'#f66':b.boss_small<1?'#6af':'#fff'}">${b.boss_small}×</td>
+      <td style="color:${b.boss_large>1?'#f66':b.boss_large<1?'#6af':'#fff'}">${b.boss_large}×</td>
+      <td style="color:${b.boss_normal>1?'#f66':b.boss_normal<1?'#6af':'#fff'}">${b.boss_normal}×</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  html += '<div style="padding:6px 8px;font-size:11px;color:#aaa">🔴 빨간색=취약(>1×) / 🔵 파란색=저항(&lt;1×) / 일반 몬스터 상성과 동일한 수치 적용 — 수정은 js/config.js BOSS_EFFECTIVENESS에서</div></div>';
+
+
+  area.innerHTML = html;
+
+  // Rate change listeners
+  area.querySelectorAll('[data-rate]').forEach(inp => {
+    inp.addEventListener('input', updateGachaSum);
+  });
+  updateGachaSum();
+}
+
+function updateGachaSum(){
+  let sum = 0;
+  document.querySelectorAll('[data-rate]').forEach(inp => {
+    const v = parseFloat(inp.value) || 0;
+    sum += v;
+    const pctEl = document.getElementById('pct-' + inp.dataset.rate);
+    const _total = Object.values(cfg.GACHA_RATES).reduce((a,b)=>a+b,0)||99999;
+    if(pctEl) pctEl.textContent = (v/_total*100).toFixed(4) + '%';
+  });
+  const sumEl = document.getElementById('rateSum');
+  const _sumTotal = 99999;
+  const pct = (sum / _sumTotal * 100).toFixed(4);
+  const ok = sum >= 99000 && sum <= 101000;
+  sumEl.textContent = `합계: ${pct}% (${sum}/${_sumTotal})`;
+  sumEl.className = 'sum-row ' + (ok ? 'ok' : 'err');
+  if(!ok) sumEl.textContent += ' ⚠️ 가중치 합계가 99000~101000 범위를 벗어남!';
+}
+
+function collectSystem(){
+  const cfg = {};
+  document.querySelectorAll('[data-cfg]').forEach(inp => {
+    cfg[inp.dataset.cfg] = parseFloat(inp.value);
+  });
+  cfg.GACHA_RATES = {};
+  document.querySelectorAll('[data-rate]').forEach(inp => {
+    cfg.GACHA_RATES[inp.dataset.rate] = parseInt(inp.value) || 0;
+  });
+  cfg.TYPE_AFFINITY = {normal:{},explosive:{},vibration:{}};
+  document.querySelectorAll('[data-aff]').forEach(inp => {
+    const [at, size] = inp.dataset.aff.split('-');
+    cfg.TYPE_AFFINITY[at][size] = parseFloat(inp.value) || 0;
+  });
+  return cfg;
+}
+
+// ═══════════════════════════════════════════════
+// TAB 2: TOWER STATS
+// ═══════════════════════════════════════════════
+function renderTower(){
+  const units = loadLS(LS_KEYS.tower, DEFAULT_UNITS);
+  // 표시 순서 보장: 기본 → _yeon → _dok → _don
+  function unitGroupOrder(u) {
+    const id = u.id || '';
+    if (id.endsWith('_yeon')) return 1;
+    if (id.endsWith('_dok'))  return 2;
+    if (id.endsWith('_don'))  return 3;
+    return 0;
+  }
+  units.sort(function(a, b) { return unitGroupOrder(a) - unitGroupOrder(b); });
+  const area = document.getElementById('towerArea');
+
+  // SKILL_OPTIONS 드롭다운 제거 — skillId는 숫자 직접 입력으로 변경
+  let html = '<div class="section"><div class="section-title">🗼 타워 능력치 (108개 유닛)</div>';
+  html += '<div class="tbl-wrap"><table id="towerTable"><thead><tr>';
+  html += '<th>ID</th><th>이름</th><th>등급</th><th>공격타입</th><th>공격력</th><th>치명타율(‱)</th><th>공속(ms)</th><th>사거리</th><th>스킬ID</th><th>등급점수</th><th>뽑기</th><th>DPS</th>';
+  html += '</tr></thead><tbody>';
+
+  units.forEach((u, i) => {
+    const dps = (u.damage / (u.attackSpeed / 1000)).toFixed(1);
+    const gs = u.gradeScore || 0;
+    const ga = u.gachaAvailable !== undefined ? u.gachaAvailable : true;
+
+    html += `<tr class="tier-${u.tier}" data-idx="${i}">
+      <td><input type="text" readonly value="${u.id}" data-field="id"></td>
+      <td><input type="text" value="${esc(u.name)}" data-field="name"></td>
+      <td><select data-field="tier">${TIERS.map(t=>`<option value="${t}"${t===u.tier?' selected':''}>${TIER_LABELS[t]}</option>`).join('')}</select></td>
+      <td><select data-field="attackType">${ATK_TYPES.map(t=>`<option value="${t}"${t===u.attackType?' selected':''}>${ATK_LABELS[t]}</option>`).join('')}</select></td>
+      <td><input type="number" value="${u.damage}" data-field="damage"></td>
+      <td><input type="number" value="${u.criticalRate !== undefined ? u.criticalRate : 1000}" data-field="criticalRate"></td>
+      <td><input type="number" value="${u.attackSpeed}" data-field="attackSpeed"></td>
+      <td><input type="number" value="${u.range}" data-field="range"></td>
+      <td><input type="number" value="${u.skillId !== undefined ? u.skillId : ''}" data-field="skillId" style="width:55px"></td>
+      <td><input type="number" value="${gs}" data-field="gradeScore" style="width:80px"></td>
+      <td><input type="checkbox" data-field="gachaAvailable" ${ga?'checked':''} style="width:auto"></td>
+      <td><span class="calc" id="dps-${i}">${dps}</span></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div></div>';
+  area.innerHTML = html;
+
+  // DPS recalc + tier color
+  const table = document.getElementById('towerTable');
+  table.addEventListener('input', e => {
+    const tr = e.target.closest('tr');
+    if(!tr) return;
+    updateTowerRow(tr);
+  });
+  table.addEventListener('change', e => {
+    const tr = e.target.closest('tr');
+    if(!tr) return;
+    if(e.target.dataset.field === 'tier'){
+      tr.className = 'tier-' + e.target.value;
+    }
+    updateTowerRow(tr);
+  });
+}
+
+function updateTowerRow(tr){
+  const idx = tr.dataset.idx;
+  const dmg = parseFloat(tr.querySelector('[data-field="damage"]').value) || 0;
+  const spd = parseFloat(tr.querySelector('[data-field="attackSpeed"]').value) || 1;
+  const dps = (dmg / (spd / 1000)).toFixed(1);
+  document.getElementById('dps-'+idx).textContent = dps;
+}
+
+function collectTower(){
+  const rows = document.querySelectorAll('#towerTable tbody tr');
+  return Array.from(rows).map(tr => {
+    const rawSkill = tr.querySelector('[data-field="skillId"]').value;
+    const skillId = isNaN(rawSkill) ? rawSkill : parseInt(rawSkill);
+    return {
+      id: tr.querySelector('[data-field="id"]').value,
+      name: tr.querySelector('[data-field="name"]').value,
+      tier: tr.querySelector('[data-field="tier"]').value,
+      attackType: tr.querySelector('[data-field="attackType"]').value,
+      damage: parseFloat(tr.querySelector('[data-field="damage"]').value) || 0,
+      criticalRate: parseInt(tr.querySelector('[data-field="criticalRate"]').value) || 1000,
+      attackSpeed: parseFloat(tr.querySelector('[data-field="attackSpeed"]').value) || 0,
+      range: parseFloat(tr.querySelector('[data-field="range"]').value) || 0,
+      skillId: skillId,
+      gradeScore: parseInt(tr.querySelector('[data-field="gradeScore"]').value) || 0,
+      gachaAvailable: tr.querySelector('[data-field="gachaAvailable"]').checked
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════
+// TAB 3: SKILLS
+// ═══════════════════════════════════════════════
+function renderSkill(){
+  const skills = loadLS(LS_KEYS.skill, DEFAULT_SKILLS);
+  const area = document.getElementById('skillArea');
+  let html = '<div class="section"><div class="section-title">🎯 발사체(스킬) 데이터</div>';
+  html += '<div class="tbl-wrap"><table id="skillTable"><thead><tr>';
+  html += '<th>ID</th><th>이름</th><th>스킬 타입</th><th>설명</th><th>투사체 속도</th><th>표시 크기(px)</th><th>Fallback 모양</th><th>이미지</th><th title="체인 라이트닝 전용">연쇄수</th><th title="체인 라이트닝 전용">연쇄범위</th><th title="체인 라이트닝 전용">연쇄감쇠</th><th title="지속 피해 전용">지속시간(ms)</th><th title="지속 피해 전용">최대중첩</th><th title="지속 피해 전용">틱주기(ms)</th><th title="지속 피해 전용">독피해비율</th><th title="앵벌이 전용">골드획득 스택</th><th title="앵벌이 전용">골드 획득량</th><th title="앵벌이 전용 — 스택마다 다음 획득량 변화율(%)">획득량 변화율(%)</th>';
+  html += '</tr></thead><tbody>';
+
+  const allKeys = Object.keys(DEFAULT_SKILLS);
+  Object.keys(skills).forEach(k => { if (allKeys.indexOf(k) === -1) allKeys.push(k); });
+
+  allKeys.forEach(sid => {
+    const s = skills[String(sid)] || DEFAULT_SKILLS[String(sid)];
+    if (!s) return;
+    const filename = s.imagePath ? s.imagePath.replace('assets/Art/projectiles/', '') : '';
+    const isChain    = !!(s.bounceCount);
+    const isDuration = s.category === 'duration';
+    const isGoldFarm = s.nameEn === 'GOLD_FARM';
+    html += `<tr data-sid="${sid}" class="${isDuration ? 'duration-row' : ''}">
+      <td><input type="text" readonly value="${sid}" data-field="id"></td>
+      <td><input type="text" value="${esc(s.name)}" data-field="name"></td>
+      <td><select data-field="nameEn">${SKILL_TYPES.map(t=>`<option value="${t}"${t===(s.nameEn||'')?' selected':''}>${t}</option>`).join('')}</select></td>
+      <td><input type="text" value="${esc(s.desc||'')}" data-field="desc" style="min-width:200px"></td>
+      <td><input type="number" step="0.5" value="${s.projectileSpeed}" data-field="projectileSpeed"></td>
+      <td><input type="number" value="${s.displaySize}" data-field="displaySize"></td>
+      <td><select data-field="fallbackShape">${SHAPES.map(sh=>`<option value="${sh}"${sh===s.fallbackShape?' selected':''}>${sh}</option>`).join('')}</select></td>
+      <td><input type="text" value="${esc(filename)}" data-field="imagePath" style="min-width:150px" placeholder="파일명만 입력"></td>
+      <td><input type="number" value="${s.bounceCount||''}" data-field="bounceCount" style="width:55px" placeholder="-" ${isDuration||isGoldFarm?'disabled':''}></td>
+      <td><input type="number" value="${s.bounceRange||''}" data-field="bounceRange" style="width:60px" placeholder="-" ${isDuration||isGoldFarm?'disabled':''}></td>
+      <td><input type="number" step="0.01" value="${s.bounceDamageMultiplier||''}" data-field="bounceDamageMultiplier" style="width:60px" placeholder="-" ${isDuration||isGoldFarm?'disabled':''}></td>
+      <td><input type="number" value="${s.poisonDuration||''}" data-field="poisonDuration" style="width:75px" placeholder="-" ${!isDuration?'class="dim-cell" disabled':''}></td>
+      <td><input type="number" value="${s.maxPoisonStacks||''}" data-field="maxPoisonStacks" style="width:60px" placeholder="-" ${!isDuration?'class="dim-cell" disabled':''}></td>
+      <td><input type="number" value="${s.tickRate||''}" data-field="tickRate" style="width:70px" placeholder="-" ${!isDuration?'class="dim-cell" disabled':''}></td>
+      <td><input type="number" step="0.01" value="${s.poisonDamageRatio||''}" data-field="poisonDamageRatio" style="width:65px" placeholder="-" ${!isDuration?'class="dim-cell" disabled':''}></td>
+      <td><input type="number" value="${s.attacksToReward||''}" data-field="attacksToReward" style="width:70px" placeholder="-" ${!isGoldFarm?'class="dim-cell" disabled':''}></td>
+      <td><input type="number" value="${s.goldReward||''}" data-field="goldReward" style="width:60px" placeholder="-" ${!isGoldFarm?'class="dim-cell" disabled':''}></td>
+      <td><input type="number" value="${s.goldRewardDelta||''}" data-field="goldRewardDelta" style="width:70px" placeholder="-" ${!isGoldFarm?'class="dim-cell" disabled':''}></td>
+    </tr>`;
+  });
+
+
+  html += '</tbody></table></div></div>';
+  area.innerHTML = html;
+}
+
+function collectSkill(){
+  const result = {};
+  document.querySelectorAll('#skillTable tbody tr').forEach(tr => {
+    const sid = tr.dataset.sid;
+    const filename = tr.querySelector('[data-field="imagePath"]').value.trim();
+    const fullPath = filename ? (filename.startsWith('assets') ? filename : 'assets/Art/projectiles/' + filename) : '';
+    const idVal = isNaN(sid) ? sid : parseInt(sid);
+    const obj = {
+      id: idVal,
+      name: tr.querySelector('[data-field="name"]').value,
+      nameEn: tr.querySelector('[data-field="nameEn"]').value,
+      desc: tr.querySelector('[data-field="desc"]').value,
+      projectileSpeed: parseFloat(tr.querySelector('[data-field="projectileSpeed"]').value) || 0,
+      displaySize: parseInt(tr.querySelector('[data-field="displaySize"]').value) || 0,
+      fallbackShape: tr.querySelector('[data-field="fallbackShape"]').value
+    };
+    if (fullPath) obj.imagePath = fullPath;
+    // 체인 라이트닝 전용 필드
+    const bc = tr.querySelector('[data-field="bounceCount"]').value;
+    const br = tr.querySelector('[data-field="bounceRange"]').value;
+    const bdm = tr.querySelector('[data-field="bounceDamageMultiplier"]').value;
+    if (bc !== '') obj.bounceCount = parseInt(bc) || 0;
+    if (br !== '') obj.bounceRange = parseInt(br) || 0;
+    if (bdm !== '') obj.bounceDamageMultiplier = parseFloat(bdm) || 0;
+    // 지속 피해(duration) 전용 필드
+    const pd  = tr.querySelector('[data-field="poisonDuration"]').value;
+    const mps = tr.querySelector('[data-field="maxPoisonStacks"]').value;
+    const tr2 = tr.querySelector('[data-field="tickRate"]').value;
+    const pdr = tr.querySelector('[data-field="poisonDamageRatio"]').value;
+    if (pd  !== '') obj.poisonDuration    = parseInt(pd)    || 0;
+    if (mps !== '') obj.maxPoisonStacks   = parseInt(mps)   || 0;
+    if (tr2 !== '') obj.tickRate          = parseInt(tr2)   || 0;
+    if (pdr !== '') obj.poisonDamageRatio = parseFloat(pdr) || 0;
+    // 앵벌이(GOLD_FARM) 전용 필드
+    const atr = tr.querySelector('[data-field="attacksToReward"]').value;
+    const gr  = tr.querySelector('[data-field="goldReward"]').value;
+    if (atr !== '') obj.attacksToReward = parseInt(atr) || 0;
+    if (gr  !== '') obj.goldReward      = parseInt(gr)  || 0;
+    const grd = tr.querySelector('[data-field="goldRewardDelta"]').value;
+    if (grd !== '') obj.goldRewardDelta = parseFloat(grd) || 0;
+    // fallbackColor 보존 (chain_lightning, poison 등)
+    const orig = DEFAULT_SKILLS[sid];
+    if (orig && orig.fallbackColor) obj.fallbackColor = orig.fallbackColor;
+    // category 보존
+    if (orig && orig.category) obj.category = orig.category;
+    result[sid] = obj;
+  });
+  return result;
+}
+
+// ═══════════════════════════════════════════════
+// TAB 4: STAGES
+// ═══════════════════════════════════════════════
+
+function renderMonster(){
+  const monsters = loadLS(LS_KEYS.monster, DEFAULT_MONSTERS);
+  const waves    = loadLS(LS_KEYS.stage,   DEFAULT_WAVES);
+  const area = document.getElementById('monsterArea');
+  let html = '<div class="section"><div class="section-title">💀 몬스터 (ID 1~50)</div>';
+  html += '<div class="tbl-wrap"><table id="monsterTable"><thead><tr>';
+  html += '<th>ID</th><th>이름</th><th>타입</th><th>보스여부</th><th>기본HP</th><th>수량</th><th>속도</th><th>골드보상</th><th>이미지 경로</th>';
+  html += '</tr></thead><tbody>';
+
+  monsters.forEach((m, i) => {
+    const imgVal = m.imagePath || '';
+    const wave  = waves.find(w => w.monsterId === m.id);
+    const count = wave ? (wave.count || 0) : 0;
+    html += `<tr class="${m.isBoss?'boss-row':''}" data-idx="${i}">
+      <td><input type="number" value="${m.id}" data-field="id" readonly style="width:50px"></td>
+      <td><input type="text" value="${m.name}" data-field="name" style="width:100px"></td>
+      <td><select data-field="type">${MONSTER_TYPES.map(t=>`<option value="${t}"${t===m.type?' selected':''}>${MONSTER_TYPE_LABELS[t]||t}</option>`).join('')}</select></td>
+      <td><input type="checkbox" data-field="isBoss" ${m.isBoss?'checked':''} style="width:auto"></td>
+      <td><input type="number" value="${m.hp}" data-field="hp" style="width:80px"></td>
+      <td><input type="number" value="${count}" data-field="count" style="width:60px" min="0" ${m.isBoss?'title="보스 1마리 고정"':''}></td>
+      <td><input type="number" step="0.01" value="${m.speed}" data-field="speed" style="width:70px"></td>
+      <td><input type="number" value="${m.goldReward}" data-field="goldReward" style="width:70px"></td>
+      <td><input type="text" value="${imgVal}" data-field="imagePath" style="width:200px" placeholder="assets/Art/monsters/파일명.png"></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div></div>';
+  area.innerHTML = html;
+
+  const table = document.getElementById('monsterTable');
+  table.addEventListener('change', e => {
+    const tr = e.target.closest('tr');
+    if(!tr) return;
+    const field = e.target.dataset.field;
+    if(field === 'isBoss'){
+      tr.classList.toggle('boss-row', e.target.checked);
+    }
+  });
+}
+
+function collectMonster(){
+  const rows = document.querySelectorAll('#monsterTable tbody tr');
+  const monsterData = Array.from(rows).map(tr => ({
+    id:         parseInt(tr.querySelector('[data-field="id"]').value) || 0,
+    name:       tr.querySelector('[data-field="name"]').value,
+    type:       tr.querySelector('[data-field="type"]').value,
+    hp:         parseInt(tr.querySelector('[data-field="hp"]').value) || 0,
+    speed:      parseFloat(tr.querySelector('[data-field="speed"]').value) || 0,
+    goldReward: parseInt(tr.querySelector('[data-field="goldReward"]').value) || 0,
+    isBoss:     tr.querySelector('[data-field="isBoss"]').checked,
+    imagePath:  tr.querySelector('[data-field="imagePath"]').value.trim()
+  }));
+
+  const waves = loadLS(LS_KEYS.stage, DEFAULT_WAVES);
+  rows.forEach(tr => {
+    const monsterId = parseInt(tr.querySelector('[data-field="id"]').value) || 0;
+    const countEl   = tr.querySelector('[data-field="count"]');
+    if (!countEl) return;
+    const newCount = parseInt(countEl.value) || 0;
+    const wave = waves.find(w => w.monsterId === monsterId);
+    if (wave) wave.count = newCount;
+  });
+  localStorage.setItem(LS_KEYS.stage, JSON.stringify(waves));
+  return monsterData;
+}
+
+function renderStage(){
+  const waves = loadLS(LS_KEYS.stage, DEFAULT_WAVES);
+  const area = document.getElementById('stageArea');
+  let html = '<div class="section"><div class="section-title">📋 스테이지 (50 라운드)</div>';
+  html += '<div class="tbl-wrap"><table id="stageTable"><thead><tr>';
+  html += '<th>라운드</th><th>몬스터 ID</th><th>⏱제한시간(초)</th><th>⚔️타임어택</th><th>🏆클리어골드</th><th>🕒리스폰시간(ms)</th>';
+  html += '</tr></thead><tbody>';
+
+  const monsters = loadLS(LS_KEYS.monster, DEFAULT_MONSTERS);
+  waves.forEach((w, i) => {
+    const m = monsters.find(x => x.id === w.monsterId) || monsters[0];
+    const isBoss = m ? m.isBoss : false;
+    const timeAttack = w.timeAttack !== undefined ? w.timeAttack : (w.timeLimit > 0 && isBoss);
+    html += `<tr class="${isBoss?'boss-row':''}" data-idx="${i}">
+      <td><input type="number" value="${w.round}" data-field="round" readonly style="width:50px"></td>
+      <td><input type="number" value="${w.monsterId}" data-field="monsterId" style="width:70px"></td>
+      <td><input type="number" value="${w.timeLimit||0}" data-field="timeLimit" style="width:70px" min="0"></td>
+      <td><input type="checkbox" data-field="timeAttack" ${timeAttack?'checked':''} style="width:auto"></td>
+      <td><input type="number" value="${w.clearGoldBonus||0}" data-field="clearGoldBonus" style="width:80px" min="0" title="스테이지 클리어 시 지급되는 보너스 골드"></td>
+      <td><input type="number" value="${w.spawnInterval||2000}" data-field="spawnInterval" style="width:80px" min="100" step="100" title="이 라운드의 모스터 리스폰 간격(ms)"></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div></div>';
+  area.innerHTML = html;
+
+  // Real HP recalc
+  const table = document.getElementById('stageTable');
+  table.addEventListener('input', e => {
+    const tr = e.target.closest('tr');
+    if(!tr) return;
+    updateStageRow(tr);
+  });
+  table.addEventListener('change', e => {
+    const tr = e.target.closest('tr');
+    if(!tr) return;
+    const field = e.target.dataset.field;
+    if(field === 'isBoss'){
+      tr.classList.toggle('boss-row', e.target.checked);
+    }
+    updateStageRow(tr);
+  });
+}
+
+function updateStageRow(tr){
+  const idx = tr.dataset.idx;
+
+}
+
+function collectStage(){
+  const rows  = document.querySelectorAll('#stageTable tbody tr');
+  // 수량(count)은 몬스터 테이블에서 관리 → 현재 wave LS에서 읽어 유지
+  const waves = loadLS(LS_KEYS.stage, DEFAULT_WAVES);
+  return Array.from(rows).map(tr => {
+    const round      = parseInt(tr.querySelector('[data-field="round"]').value) || 0;
+    const monsterId  = parseInt(tr.querySelector('[data-field="monsterId"]').value) || 1;
+    const existing   = waves.find(w => w.round === round);
+    return {
+      round,
+      monsterId,
+      count:         existing ? (existing.count || 0) : 0,  // 몬스터 테이블에서 관리
+      timeLimit:      parseInt(tr.querySelector('[data-field="timeLimit"]').value) || 0,
+      timeAttack:     tr.querySelector('[data-field="timeAttack"]').checked,
+      clearGoldBonus: parseInt(tr.querySelector('[data-field="clearGoldBonus"]').value) || 0,
+      spawnInterval:  parseInt(tr.querySelector('[data-field="spawnInterval"]').value) || 2000
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════
+// TAB 6: DPS MODE
+// ═══════════════════════════════════════════════
+function renderDps(){
+  const cfg = loadLS(LS_KEYS.dps, DEFAULT_DPS_MODE);
+  const area = document.getElementById('dpsArea');
+  let html = '<h2 style="color:#00AAFF;margin-bottom:12px">📊 DPS MODE 설정</h2>';
+
+  // 기본 설정 테이블
+  html += '<div class="tbl-wrap"><table id="dpsTable"><thead><tr>';
+  html += '<th>스폰 간격(ms)</th><th>몬스터 속도</th><th>몬스터 HP</th><th>골드 보상</th><th>시작 골드</th><th>뽑기</th>';
+  html += '</tr></thead><tbody><tr>';
+  html += `<td><input type="number" data-field="spawnInterval" value="${cfg.spawnInterval}" style="width:80px"></td>`;
+  html += `<td><input type="number" data-field="monsterSpeed" value="${cfg.monsterSpeed}" step="0.1" style="width:80px"></td>`;
+  html += `<td><input type="number" data-field="monsterHp" value="${cfg.monsterHp}" style="width:160px"></td>`;
+  html += `<td><input type="number" data-field="goldReward" value="${cfg.goldReward}" style="width:80px"></td>`;
+  html += `<td><input type="number" data-field="startGold" value="${cfg.startGold !== undefined ? cfg.startGold : 0}" style="width:80px"></td>`;
+  html += `<td><input type="checkbox" data-field="gachaEnabled" ${cfg.gachaEnabled ? 'checked' : ''}> 활성화</td>`;
+  html += '</tr></tbody></table></div>';
+
+  // 타입별 수량 테이블
+  html += '<h3 style="color:#88CCFF;margin:16px 0 8px">몬스터 타입별 스폰 수량</h3>';
+  html += '<div class="tbl-wrap"><table id="dpsTypesTable"><thead><tr>';
+  html += '<th>#</th><th>타입</th><th>수량</th><th>삭제</th>';
+  html += '</tr></thead><tbody>';
+
+  const types = cfg.types || DEFAULT_DPS_MODE.types;
+  const typeOpts = ['general','small','large','boss_normal','boss_large','boss_small'];
+  const typeLabels = {general:'일반',small:'소형',large:'대형',boss_normal:'보스_일반',boss_large:'보스_대형',boss_small:'보스_소형'};
+  types.forEach((t, i) => {
+    html += `<tr data-idx="${i}">`;
+    html += `<td>${i+1}</td>`;
+    html += `<td><select data-field="type">`;
+    typeOpts.forEach(o => {
+      html += `<option value="${o}" ${t.type===o?'selected':''}>${typeLabels[o]||o}</option>`;
+    });
+    html += `</select></td>`;
+    html += `<td><input type="number" data-field="count" value="${t.count}" style="width:60px" min="1"></td>`;
+    html += `<td><button onclick="this.closest('tr').remove()" style="background:#c0392b;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">✕</button></td>`;
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // 총 수량 표시 + 추가 버튼
+  const totalCount = types.reduce((s,t) => s + t.count, 0);
+  html += `<div style="margin:8px 0;color:#aaa">총 스폰: <span style="color:#00AAFF;font-weight:bold">${totalCount}</span>마리</div>`;
+  html += '<button onclick="addDpsType()" style="background:#00AAFF;color:#000;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:bold">+ 타입 추가</button>';
+
+  area.innerHTML = html;
+}
+
+function addDpsType(){
+  const tbody = document.querySelector('#dpsTypesTable tbody');
+  const idx = tbody.rows.length;
+  const typeOpts = ['general','small','large','boss_normal','boss_large','boss_small'];
+  const typeLabels = {general:'일반',small:'소형',large:'대형',boss_normal:'보스_일반',boss_large:'보스_대형',boss_small:'보스_소형'};
+  let html = `<tr data-idx="${idx}"><td>${idx+1}</td><td><select data-field="type">`;
+  typeOpts.forEach(o => { html += `<option value="${o}">${typeLabels[o]||o}</option>`; });
+  html += `</select></td>`;
+  html += `<td><input type="number" data-field="count" value="10" style="width:60px" min="1"></td>`;
+  html += `<td><button onclick="this.closest('tr').remove()" style="background:#c0392b;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">✕</button></td></tr>`;
+  tbody.insertAdjacentHTML('beforeend', html);
+}
+
+function collectDps(){
+  const tbl = document.getElementById('dpsTable');
+  const row = tbl.querySelector('tbody tr');
+  const typesRows = document.querySelectorAll('#dpsTypesTable tbody tr');
+
+  return {
+    spawnInterval: parseInt(row.querySelector('[data-field="spawnInterval"]').value) || 1800,
+    monsterSpeed:  parseFloat(row.querySelector('[data-field="monsterSpeed"]').value) || 0.9,
+    monsterHp:     parseInt(row.querySelector('[data-field="monsterHp"]').value) || 9007199254740991,
+    goldReward:    parseInt(row.querySelector('[data-field="goldReward"]').value) || 0,
+    startGold:     parseInt(row.querySelector('[data-field="startGold"]').value) || 0,
+    gachaEnabled:  row.querySelector('[data-field="gachaEnabled"]').checked,
+    types: Array.from(typesRows).map(tr => ({
+      type:  tr.querySelector('[data-field="type"]').value,
+      count: parseInt(tr.querySelector('[data-field="count"]').value) || 10
+    }))
+  };
+}
+
+// ═══════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════
+function getCollector(tab){
+  switch(tab){
+    case 'system': return { collect: collectSystem, key: LS_KEYS.system };
+    case 'tower':  return { collect: collectTower,  key: LS_KEYS.tower };
+    case 'skill':  return { collect: collectSkill,  key: LS_KEYS.skill };
+    case 'monster': return { collect: collectMonster, key: LS_KEYS.monster };
+    case 'stage':  return { collect: collectStage,  key: LS_KEYS.stage };
+    case 'dps':    return { collect: collectDps,    key: LS_KEYS.dps };
+  }
+}
+
+function getDefaults(tab){
+  switch(tab){
+    case 'system': return DEFAULT_CONFIG;
+    case 'tower':  return DEFAULT_UNITS;
+    case 'skill':  return DEFAULT_SKILLS;
+    case 'monster': return DEFAULT_MONSTERS;
+    case 'stage':  return DEFAULT_WAVES;
+    case 'dps':    return DEFAULT_DPS_MODE;
+  }
+}
+
+function getRenderer(tab){
+  switch(tab){
+    case 'system': return renderSystem;
+    case 'tower':  return renderTower;
+    case 'skill':  return renderSkill;
+    case 'monster': return renderMonster;
+    case 'stage':  return renderStage;
+    case 'dps':    return renderDps;
+  }
+}
+
+function saveCurrentTab(){
+  try{
+    const {collect, key} = getCollector(activeTab);
+    const data = collect();
+    localStorage.setItem(key, JSON.stringify(data));
+    showStatus(`✅ [${LS_KEYS[activeTab]}] 저장 완료!`, true);
+  }catch(e){
+    showStatus('❌ 저장 실패: ' + e.message, false);
+  }
+}
+
+function resetCurrentTab(){
+  if(!confirm('현재 탭의 데이터를 기본값으로 되돌리시겠습니까?')) return;
+  try{
+    localStorage.removeItem(LS_KEYS[activeTab]);
+    getRenderer(activeTab)();
+    showStatus('↩ 기본값으로 복원됨', true);
+  }catch(e){
+    showStatus('❌ 복원 실패: ' + e.message, false);
+  }
+}
+
+function resetAllTabs(){
+  if(!confirm('⚠️ 모든 탭의 localStorage를 삭제하고 최신 DEFAULT 데이터로 새로 로드합니다.\n계속하시겠습니까?')) return;
+  try{
+    // 모든 탭 localStorage 삭제
+    Object.values(LS_KEYS).forEach(k => localStorage.removeItem(k));
+    // 현재 탭 다시 렌더링
+    getRenderer(activeTab)();
+    showStatus('🗑 전체 초기화 완료 — 최신 DEFAULT 데이터 로드됨', true);
+    console.log('[resetAllTabs] 모든 localStorage 키 삭제 완료:', Object.values(LS_KEYS));
+  }catch(e){
+    showStatus('❌ 초기화 실패: ' + e.message, false);
+  }
+}
+
+function copyJSON(){
+  try{
+    const {collect} = getCollector(activeTab);
+    const json = JSON.stringify(collect(), null, 2);
+    navigator.clipboard.writeText(json).then(()=>{
+      showStatus('📋 JSON이 클립보드에 복사됨', true);
+    }).catch(()=>{
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = json; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+      showStatus('📋 JSON이 클립보드에 복사됨', true);
+    });
+  }catch(e){
+    showStatus('❌ 복사 실패: ' + e.message, false);
+  }
+}
+
+function pasteJSON(){
+  const raw = prompt('JSON 데이터를 붙여넣으세요:');
+  if(!raw) return;
+  try{
+    const data = JSON.parse(raw);
+    localStorage.setItem(LS_KEYS[activeTab], JSON.stringify(data));
+    getRenderer(activeTab)();
+    showStatus('📥 JSON 데이터 적용 완료', true);
+  }catch(e){
+    showStatus('❌ JSON 파싱 실패: ' + e.message, false);
+  }
+}
+
+async function applyToCode() {
+  if (!window.showDirectoryPicker) {
+    alert('이 브라우저는 파일 시스템 API를 지원하지 않습니다. 크롬/엣지를 사용해주세요.');
+    return;
+  }
+  if (!confirm('경고: 실제 프로젝트 데이터 파일(stats.json 또는 config.js)을 덮어씁니다.\n\n진행하시겠습니까?\n\n(참고: 파일 선택기 창이 뜨면 프로젝트 루트 폴더인 "Project_RTD"를 선택해 주세요.)')) return;
+
+  try {
+    const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    
+    if (activeTab === 'system') {
+        let jsHandle;
+        try { jsHandle = await dirHandle.getDirectoryHandle('js'); } catch(e) {
+            alert('js 폴더를 찾지 못했습니다. 프로젝트 루트 폴더를 선택해주세요.');
+            return;
+        }
+        let cfgHandle;
+        try { cfgHandle = await jsHandle.getFileHandle('config.js'); }
+        catch(e) {
+            alert('config.js를 찾지 못했습니다. 프로젝트 루트 폴더를 선택해주세요.');
+            return;
+        }
+        const file = await cfgHandle.getFile();
+        let text = await file.text();
+        
+        const cfg = getCollector('system').collect();
+        
+        const keys = ['INITIAL_GOLD','GACHA_COST','ROUND_BONUS_MULTIPLIER','INITIAL_LIVES','MAX_MONSTERS','TOTAL_ROUNDS','SPAWN_INTERVAL','CRITICAL_DAMAGE_RATIO'];
+        keys.forEach(k => {
+            const regex = new RegExp(k + ':\\s*[\\d\\.]+,');
+            text = text.replace(regex, k + ': ' + cfg[k] + ',');
+        });
+        
+        let ratesStr = JSON.stringify(cfg.GACHA_RATES, null, 8).replace(/\n/g, '\n        ');
+        text = text.replace(/GACHA_RATES:\s*\{[\s\S]*?\n\s*\}/, 'GACHA_RATES: ' + ratesStr.trim());
+        
+        let typeStr = JSON.stringify(cfg.TYPE_AFFINITY, null, 8).replace(/\n/g, '\n        ');
+        text = text.replace(/TYPE_AFFINITY:\s*\{[\s\S]*?\n\s*\}/, 'TYPE_AFFINITY: ' + typeStr.trim());
+        
+        // 쓰기 직전 핸들 재획득 (Windows 캐시 충돌 방지)
+        const freshCfgHandle = await jsHandle.getFileHandle('config.js');
+        const writable = await freshCfgHandle.createWritable();
+        await writable.write(text);
+        await writable.close();
+        showStatus('✅ config.js 파일에 영구 적용 완료!', true);
+    } else {
+        // assets/data/stats.json 처리
+        let assetsHandle, dataDirHandle;
+        try { 
+            assetsHandle = await dirHandle.getDirectoryHandle('assets'); 
+            dataDirHandle = await assetsHandle.getDirectoryHandle('data');
+        } catch(e) {
+            alert('assets/data 폴더를 찾지 못했습니다. 프로젝트 루트 폴더를 선택해주세요.');
+            return;
+        }
+        
+        let statsHandle, statsObj = {};
+        try {
+            statsHandle = await dataDirHandle.getFileHandle('stats.json');
+            const file = await statsHandle.getFile();
+            statsObj = JSON.parse(await file.text());
+        } catch(e) {
+            // stats.json이 없을 경우 생성
+            statsHandle = await dataDirHandle.getFileHandle('stats.json', { create: true });
+        }
+        
+        if (activeTab === 'monster') {
+            const arr = getCollector('monster').collect();
+            const obj = {};
+            arr.forEach(m => obj[m.id] = m);
+            statsObj.monsters = obj;
+        } else if (activeTab === 'stage') {
+            statsObj.waves = getCollector('stage').collect();
+        } else if (activeTab === 'tower') {
+            statsObj.units = getCollector('tower').collect();
+        } else if (activeTab === 'skill') {
+            statsObj.skills = getCollector('skill').collect();
+        }
+        
+        // 쓰기 직전 핸들 재획득 (Windows 캐시 충돌 방지)
+        const freshStatsHandle = await dataDirHandle.getFileHandle('stats.json', { create: true });
+        const writable = await freshStatsHandle.createWritable();
+        await writable.write(JSON.stringify(statsObj, null, 2));
+        await writable.close();
+        showStatus('✅ stats.json 파일에 영구 적용 완료!', true);
+    }
+  } catch(e) {
+    if(e.name !== 'AbortError') {
+       showStatus('❌ 파일 적용 오류: ' + e.message, false);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ═══════════════════════════════════════════════
+// KEYBOARD SHORTCUT
+// ═══════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && e.key === 's'){
+    e.preventDefault();
+    saveCurrentTab();
+  }
+});
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+// ── 안전 렌더 래퍼: 한 탭이 실패해도 나머지 탭은 정상 렌더링 ──
+function safeRender(fn, name) {
+  try {
+    fn();
+  } catch(e) {
+    console.error('[' + name + '] 렌더링 오류:', e);
+    const areaId = name.toLowerCase() + 'Area';
+    const el = document.getElementById(areaId);
+    if (el) el.innerHTML = '<div style="color:#f66;padding:16px;font-size:13px">❌ [' + name + '] 데이터 로드 실패: ' + e.message + '<br>전체 초기화 버튼을 눌러 주세요.</div>';
+  }
+}
+
+initTabs();
+safeRender(renderSystem,  'system');
+safeRender(renderTower,   'tower');
+safeRender(renderSkill,   'skill');
+safeRender(renderMonster, 'monster');
+safeRender(renderStage,   'stage');
+safeRender(renderDps,     'dps');
+switchTab('system');
+</script>
+</body>
+</html>

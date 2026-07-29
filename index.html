@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Lucky Defense - 랜덤 뽑기로 타워를 배치하고 몬스터를 막는 디펜스 게임">
+    <title>Lucky Defense</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="game-container">
+        <div id="loading-screen">
+            <div class="spinner"></div>
+            <p class="loading-text">濡쒕뵫 以?..</p>
+        </div>
+    </div>
+
+    <!-- Phaser.js 3 -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+
+    <!-- Game Config & Data -->
+    <script src="js/config.js?v=1780960585"></script>
+    <script src="js/data/unitData.js?v=1780960585"></script>
+    <script src="js/data/skillData.js?v=1780960585"></script>
+    <script src="js/data/monsterData.js"></script>
+    <script src="js/data/waveData.js?v=1780960585"></script>
+
+    <!-- Systems -->
+    <script src="js/systems/UILayout.js?v=1780960585"></script>
+    <script src="js/systems/EconomySystem.js?v=1780960585"></script>
+    <script src="js/systems/GachaSystem.js?v=1780960585"></script>
+    <script src="js/systems/CombatSystem.js?v=1780960585"></script>
+    <script src="js/systems/WaveSystem.js?v=1780960585"></script>
+    <script src="js/systems/DamageTracker.js"></script>
+
+    <!-- Game Entities -->
+    <script src="js/skills/SkillClasses.js"></script>
+    <script src="js/entities/Tower.js?v=1780960585"></script>
+    <script src="js/entities/Monster.js?v=1780960585"></script>
+    <script src="js/entities/Projectile.js?v=1780960585"></script>
+
+    <!-- UI -->
+    <script src="js/ui/HUD.js?v=1780960585"></script>
+    <script src="js/ui/Inventory.js?v=1780960585"></script>
+    <script src="js/ui/GachaUI.js?v=1780960585"></script>
+    <script src="js/ui/GoldLogPanel.js?v=1782970000"></script>
+    <script src="js/ui/DPSMeterUI.js"></script>
+
+    <!-- Scenes -->
+    <script src="js/scenes/BootScene.js?v=1780960585"></script>
+    <script src="js/scenes/MenuScene.js?v=1780960585"></script>
+    <script src="js/scenes/GameScene.js?v=1780960585"></script>
+    <script src="js/scenes/GameOverScene.js?v=1780960585"></script>
+
+    <!-- Main Entry Point -->
+    <script src="js/main.js?v=1780960585"></script>
+</body>
+</html>

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>RTD UI Editor — 운빨 디펜스 레이아웃 에디터</title>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a1a;color:#ccc;font-family:'Oxanium',monospace;font-size:13px;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* ── 상단 툴바 ── */
+#toolbar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#12121f;border-bottom:1px solid #2a2a4e;flex-shrink:0}
+#toolbar h1{font-size:14px;color:#FF6600;margin-right:12px}
+.tab-btn{padding:5px 14px;border:1px solid #333;background:#111;color:#888;border-radius:5px;cursor:pointer;font-family:'Oxanium';font-size:12px;transition:all .15s}
+.tab-btn.active{background:#1a0a00;border-color:#FF6600;color:#FF6600}
+.sep{width:1px;height:24px;background:#333;margin:0 4px}
+.tool-btn{padding:5px 12px;border:1px solid #444;background:#111;color:#aaa;border-radius:5px;cursor:pointer;font-family:'Oxanium';font-size:12px;transition:all .15s}
+.tool-btn:hover{border-color:#FF6600;color:#FF6600}
+.tool-btn.save{border-color:#44cc44;color:#44cc44}
+.tool-btn.save:hover{background:#112211}
+.tool-btn.reset{border-color:#cc4444;color:#cc4444}
+.tool-btn.reset:hover{background:#220000}
+#scale-label{color:#555;font-size:11px;margin-left:auto}
+
+/* ── 메인 레이아웃 ── */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* ── 캔버스 영역 ── */
+#canvas-area{flex:1;overflow:auto;background:#070710;display:flex;justify-content:center;align-items:flex-start;padding:20px}
+#stage-wrap{position:relative;flex-shrink:0}
+#stage{position:relative;background:#0d0d1e;border:1px solid #2a2a4e;overflow:hidden;cursor:default}
+#stage canvas{position:absolute;top:0;left:0;pointer-events:none}
+
+/* UI 요소 박스 */
+.ui-elem{position:absolute;border:1px solid rgba(100,150,255,0.5);background:rgba(60,80,200,0.12);cursor:move;user-select:none;transition:border-color .1s,background .1s}
+.ui-elem:hover{border-color:rgba(180,200,255,0.8);background:rgba(80,120,255,0.2)}
+.ui-elem.selected{border-color:#FF6600!important;background:rgba(255,102,0,0.18)!important;z-index:99}
+.ui-elem.boss{border-color:rgba(255,50,50,0.6);background:rgba(200,30,30,0.1)}
+.ui-elem.log{border-color:rgba(50,200,100,0.5);background:rgba(30,150,70,0.1)}
+.elem-label{position:absolute;top:1px;left:3px;font-size:9px;color:rgba(180,200,255,0.8);white-space:nowrap;pointer-events:none;overflow:hidden;max-width:100%}
+.selected .elem-label{color:#FF9944}
+.resize-handle{position:absolute;bottom:0;right:0;width:10px;height:10px;background:#FF6600;cursor:se-resize;opacity:0.7;border-radius:2px 0 0 0}
+
+/* ── 오른쪽 속성 패널 ── */
+#props-panel{width:260px;background:#111120;border-left:1px solid #2a2a4e;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+#props-header{padding:10px 12px;border-bottom:1px solid #2a2a4e;font-size:12px;color:#FF6600}
+#props-body{flex:1;overflow-y:auto;padding:8px}
+
+/* 속성 필드 */
+.prop-row{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.prop-label{width:60px;font-size:11px;color:#888;flex-shrink:0}
+.prop-input{flex:1;background:#0a0a18;border:1px solid #333;color:#ddd;padding:4px 6px;border-radius:4px;font-family:'Oxanium';font-size:12px}
+.prop-input:focus{outline:none;border-color:#FF6600}
+.prop-section{font-size:10px;color:#555;border-top:1px solid #1a1a2e;padding-top:6px;margin-top:4px;margin-bottom:6px}
+
+/* 요소 목록 */
+#elem-list{margin-top:6px}
+.elem-item{padding:5px 8px;cursor:pointer;border-radius:4px;font-size:11px;color:#888;display:flex;align-items:center;gap:5px;transition:all .1s}
+.elem-item:hover{background:#1a1a2e;color:#ccc}
+.elem-item.active{background:#1a0a00;color:#FF9944;border-left:2px solid #FF6600;padding-left:6px}
+.elem-cat{font-size:9px;color:#444;padding:4px 8px 2px;text-transform:uppercase;letter-spacing:1px}
+.vis-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* ── JSON 패널 ── */
+#json-panel{border-top:1px solid #2a2a4e;padding:8px}
+#json-area{width:100%;height:60px;background:#070712;border:1px solid #333;color:#88aacc;font-family:monospace;font-size:10px;padding:4px;resize:none;border-radius:3px}
+.json-btns{display:flex;gap:4px;margin-top:4px}
+.json-btn{flex:1;padding:3px;font-size:10px;font-family:'Oxanium';border:1px solid #333;background:#111;color:#888;cursor:pointer;border-radius:3px}
+.json-btn:hover{border-color:#FF6600;color:#FF6600}
+
+#status-bar{text-align:center;padding:3px;font-size:10px;color:#444;border-top:1px solid #1a1a2e}
+</style>
+</head>
+<body>
+
+<!-- 툴바 -->
+<div id="toolbar">
+  <h1>🔧 RTD UI Editor</h1>
+  <button class="tab-btn active" id="tab-menu" onclick="switchScreen('menu')">시작 화면</button>
+  <button class="tab-btn" id="tab-game" onclick="switchScreen('game')">게임 화면</button>
+  <div class="sep"></div>
+  <button class="tool-btn save" onclick="saveLayout()">💾 저장</button>
+  <button class="tool-btn reset" onclick="resetLayout()">↩ 기본값</button>
+  <div class="sep"></div>
+  <button class="tool-btn" onclick="copyJSON()">📋 JSON 복사</button>
+  <button class="tool-btn" onclick="pasteJSON()">📥 JSON 붙여넣기</button>
+  <span id="scale-label">스케일: ×0.75 | 캔버스: 1280×720</span>
+</div>
+
+<!-- 메인 -->
+<div id="main">
+  <!-- 캔버스 -->
+  <div id="canvas-area">
+    <div id="stage-wrap">
+      <div id="stage"></div>
+    </div>
+  </div>
+
+  <!-- 속성 패널 -->
+  <div id="props-panel">
+    <div id="props-header">선택된 요소 없음</div>
+    <div id="props-body">
+      <div class="prop-section">POSITION</div>
+      <div class="prop-row"><span class="prop-label">X</span><input class="prop-input" id="p-x" type="number" oninput="applyProp()"></div>
+      <div class="prop-row"><span class="prop-label">Y</span><input class="prop-input" id="p-y" type="number" oninput="applyProp()"></div>
+      <div class="prop-section">SIZE</div>
+      <div class="prop-row"><span class="prop-label">Width</span><input class="prop-input" id="p-w" type="number" oninput="applyProp()"></div>
+      <div class="prop-row"><span class="prop-label">Height</span><input class="prop-input" id="p-h" type="number" oninput="applyProp()"></div>
+      <div class="prop-section">TYPOGRAPHY</div>
+      <div class="prop-row"><span class="prop-label">Font</span><input class="prop-input" id="p-fs" type="number" oninput="applyProp()"></div>
+      <div class="prop-section" style="margin-top:10px">요소 목록</div>
+      <div id="elem-list"></div>
+    </div>
+    <div id="json-panel">
+      <textarea id="json-area" placeholder="JSON 붙여넣기..."></textarea>
+      <div class="json-btns">
+        <button class="json-btn" onclick="copyJSON()">복사</button>
+        <button class="json-btn" onclick="pasteJSON()">붙여넣기</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="status-bar" id="status">준비됨 — 요소를 클릭하여 선택, 드래그로 이동, 우하단 핸들로 크기 조정</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// 상수
+// ══════════════════════════════════════════════════════
+var GAME_W = 1280, GAME_H = 720;
+var SCALE = 0.75;
+var SW = GAME_W * SCALE, SH = GAME_H * SCALE;
+
+// ── 기본값 (UILayout.js와 동기화) ──
+var DEFAULTS = {
+  menu: {
+    'title':     { label:'타이틀', x:640, y:120, fontSize:43, color:'rgba(255,215,0,0.9)', kind:'text' },
+    'subtitle':  { label:'부제목', x:640, y:180, fontSize:17, color:'rgba(68,136,255,0.8)', kind:'text' },
+    'startBtn':  { label:'게임시작 버튼', x:640, y:420, w:220, h:52, color:'rgba(68,255,68,0.2)', kind:'box' },
+    'infoPanel': { label:'게임 정보 패널', x:20, y:440, w:580, h:200, color:'rgba(30,40,80,0.5)', kind:'box' },
+    'devPanel':  { label:'DEV 패널', x:1010, y:40, w:240, h:640, color:'rgba(255,102,0,0.15)', kind:'box' }
+  },
+  game: {
+    'hud.bar':         { label:'HUD 상단 바', x:0, y:0, w:1280, h:36, color:'rgba(10,10,30,0.8)', kind:'box' },
+    'hud.lives':       { label:'♥ 생명력', x:42, y:18, fontSize:16, color:'rgba(255,68,68,0.8)', kind:'text' },
+    'hud.gold':        { label:'💰 골드', x:155, y:18, fontSize:14, color:'rgba(255,215,0,0.8)', kind:'text' },
+    'hud.time':        { label:'⏱️ 플레이 타임', x:275, y:18, fontSize:14, color:'rgba(136,204,255,0.8)', kind:'text' },
+    'hud.round':       { label:'🔢 라운드', x:640, y:10, fontSize:14, color:'rgba(255,255,255,0.8)', kind:'text' },
+    'hud.status':      { label:'📡 상태', x:1260, y:10, fontSize:12, color:'rgba(170,170,170,0.8)', kind:'text' },
+    'hud.speedBtn':    { label:'⚡ 배속 버튼', x:1210, y:308, w:54, h:200, color:'rgba(255,215,0,0.15)', kind:'box' },
+    'hud.bossWarning': { label:'⚠ 보스 경고', x:640, y:60, fontSize:19, color:'rgba(255,0,0,0.8)', kind:'text' },
+    'hud.spacePrompt': { label:'▶ SPACE 프롬프트', x:640, y:360, fontSize:22, color:'rgba(68,255,68,0.8)', kind:'text' },
+    'game.inventory':  { label:'📦 인벤토리', x:0, y:634, w:1280, h:86, color:'rgba(26,26,46,0.7)', kind:'box' },
+    'game.gameLog':    { label:'📜 게임 로그', x:905, y:50, w:360, h:270, color:'rgba(20,30,50,0.6)', kind:'box' },
+    'game.roundLog':   { label:'📋 라운드 로그', x:905, y:330, w:360, h:270, color:'rgba(20,40,30,0.5)', kind:'box' },
+    'game.tierGuide':  { label:'🏆 등급 가이드', x:905, y:610, w:360, h:100, color:'rgba(30,30,60,0.5)', kind:'box' },
+    'game.gachaBtn':   { label:'🎲 뽑기 버튼', x:640, y:600, w:100, h:36, color:'rgba(68,136,255,0.2)', kind:'box' },
+    'game.timer':      { label:'⏳ 보스 타이머', x:350, y:18, fontSize:14, color:'rgba(255,80,80,0.8)', kind:'text' }
+  }
+};
+
+// ── 상태 ──
+var currentScreen = 'menu';
+var layouts = { menu: null, game: null };
+var selectedId = null;
+var elems = {};  // id → { el, cfg }
+
+// ── 초기화 ──
+function init() {
+  var stage = document.getElementById('stage');
+  stage.style.width  = SW + 'px';
+  stage.style.height = SH + 'px';
+  loadAllLayouts();
+  renderScreen('menu');
+}
+
+// ── localStorage 로드 ──
+function loadAllLayouts() {
+  ['menu','game'].forEach(function(s) {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem('rtd_uiLayout_' + s) || 'null'); } catch(e) {}
+    var def = DEFAULTS[s];
+    var result = {};
+    Object.keys(def).forEach(function(id) {
+      result[id] = Object.assign({}, def[id], saved && saved[id] ? saved[id] : {});
+    });
+    layouts[s] = result;
+  });
+}
+
+// ── 화면 전환 ──
+function switchScreen(s) {
+  currentScreen = s;
+  document.getElementById('tab-menu').classList.toggle('active', s === 'menu');
+  document.getElementById('tab-game').classList.toggle('active', s === 'game');
+  selectedId = null;
+  renderScreen(s);
+}
+
+// ── 화면 렌더링 ──
+function renderScreen(s) {
+  var stage = document.getElementById('stage');
+  stage.innerHTML = '';
+  elems = {};
+
+  // 배경 이미지 힌트
+  var bg = document.createElement('div');
+  bg.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+  if (s === 'menu') {
+    bg.style.background = 'linear-gradient(135deg,#0a0a1f 0%,#1a0a2f 100%)';
+    // 그리드 선 SVG
+    var svg = '<svg width="' + SW + '" height="' + SH + '" style="opacity:.06" xmlns="http://www.w3.org/2000/svg">';
+    for (var x=0; x<SW; x+=40*SCALE) svg += '<line x1="'+x+'" y1="0" x2="'+x+'" y2="'+SH+'" stroke="#8888ff" stroke-width="0.5"/>';
+    for (var y=0; y<SH; y+=40*SCALE) svg += '<line x1="0" y1="'+y+'" x2="'+SW+'" y2="'+y+'" stroke="#8888ff" stroke-width="0.5"/>';
+    svg += '</svg>';
+    bg.innerHTML = svg;
+  } else {
+    bg.style.background = '#0a0a0f';
+    // 필드 사각형 힌트
+    var fieldHint = document.createElement('div');
+    fieldHint.style.cssText = 'position:absolute;left:'+Math.round(200*SCALE)+'px;top:'+Math.round(100*SCALE)+'px;width:'+Math.round(880*SCALE)+'px;height:'+Math.round(530*SCALE)+'px;border:1px dashed rgba(80,80,120,0.3);border-radius:4px;pointer-events:none';
+    fieldHint.title = '게임 필드 영역 (참고용)';
+    var fieldLabel = document.createElement('div');
+    fieldLabel.style.cssText = 'position:absolute;top:4px;left:6px;font-size:9px;color:rgba(80,80,120,0.5)';
+    fieldLabel.textContent = '게임 필드';
+    fieldHint.appendChild(fieldLabel);
+    bg.appendChild(fieldHint);
+  }
+  stage.appendChild(bg);
+
+  var layout = layouts[s];
+  Object.keys(layout).forEach(function(id) { createElem(stage, s, id, layout[id]); });
+  buildElemList(s);
+  updatePropsPanel();
+}
+
+// ── UI 요소 생성 ──
+function createElem(stage, screen, id, cfg) {
+  var def = DEFAULTS[screen][id] || {};
+  var el = document.createElement('div');
+  el.className = 'ui-elem' + (id.startsWith('hud.boss') || id.startsWith('hud.space') ? ' boss' : '') + (id.includes('Log') ? ' log' : '');
+  el.id = 'elem_' + id.replace(/\./g,'_');
+  el.dataset.id = id;
+
+  var label = document.createElement('div');
+  label.className = 'elem-label';
+  label.textContent = (cfg.label || def.label || id);
+  el.appendChild(label);
+
+  // 크기 조절 핸들 (w/h 있는 요소에만)
+  if (cfg.w || def.w) {
+    var rh = document.createElement('div');
+    rh.className = 'resize-handle';
+    el.appendChild(rh);
+    rh.addEventListener('mousedown', function(e) { e.stopPropagation(); startResize(e, id); });
+  }
+
+  positionElem(el, cfg, def);
+  el.style.background = cfg.color || def.color || 'rgba(60,80,200,0.12)';
+
+  el.addEventListener('mousedown', function(e) {
+    if (e.target.classList.contains('resize-handle')) return;
+    selectElem(id);
+    startDrag(e, id);
+  });
+
+  stage.appendChild(el);
+  elems[id] = { el: el, cfg: cfg, def: def };
+}
+
+function positionElem(el, cfg, def) {
+  var x  = (cfg.x  !== undefined ? cfg.x  : (def.x  || 0)) * SCALE;
+  var y  = (cfg.y  !== undefined ? cfg.y  : (def.y  || 0)) * SCALE;
+  var w  = (cfg.w  !== undefined ? cfg.w  : (def.w  || 0)) * SCALE;
+  var h  = (cfg.h  !== undefined ? cfg.h  : (def.h  || 0)) * SCALE;
+  var fs = (cfg.fontSize !== undefined ? cfg.fontSize : (def.fontSize || 0));
+
+  if (w > 0 && h > 0) {
+    el.style.left   = x + 'px';
+    el.style.top    = y + 'px';
+    el.style.width  = w + 'px';
+    el.style.height = h + 'px';
+  } else {
+    // 텍스트 요소: 중심 기준, 크기 자동
+    var tw = fs ? Math.max(80, fs * 6) * SCALE : 100;
+    var th = fs ? fs * 1.5 * SCALE : 20;
+    el.style.left   = (x - tw/2) + 'px';
+    el.style.top    = (y - th/2) + 'px';
+    el.style.width  = tw + 'px';
+    el.style.height = th + 'px';
+  }
+}
+
+// ── 선택 ──
+function selectElem(id) {
+  Object.keys(elems).forEach(function(k) {
+    elems[k].el.classList.toggle('selected', k === id);
+  });
+  // 목록 업데이트
+  document.querySelectorAll('.elem-item').forEach(function(el) {
+    el.classList.toggle('active', el.dataset.id === id);
+  });
+  selectedId = id;
+  updatePropsPanel();
+}
+
+// ── 드래그 ──
+var dragState = null;
+function startDrag(e, id) {
+  e.preventDefault();
+  var cfg = layouts[currentScreen][id];
+  var def = DEFAULTS[currentScreen][id] || {};
+  var el  = elems[id].el;
+  var rect = el.getBoundingClientRect();
+  var stageRect = document.getElementById('stage').getBoundingClientRect();
+  var hasWH = (cfg.w || def.w) > 0 && (cfg.h || def.h) > 0;
+
+  dragState = {
+    id: id, hasWH: hasWH,
+    startMX: e.clientX, startMY: e.clientY,
+    startX: cfg.x !== undefined ? cfg.x : def.x,
+    startY: cfg.y !== undefined ? cfg.y : def.y,
+    stageLeft: stageRect.left, stageTop: stageRect.top
+  };
+
+  function onMove(e) {
+    if (!dragState) return;
+    var dx = (e.clientX - dragState.startMX) / SCALE;
+    var dy = (e.clientY - dragState.startMY) / SCALE;
+    var nx = Math.round(dragState.startX + dx);
+    var ny = Math.round(dragState.startY + dy);
+    // 범위 클램프
+    nx = Math.max(0, Math.min(GAME_W, nx));
+    ny = Math.max(0, Math.min(GAME_H, ny));
+    layouts[currentScreen][id].x = nx;
+    layouts[currentScreen][id].y = ny;
+    positionElem(el, layouts[currentScreen][id], DEFAULTS[currentScreen][id] || {});
+    if (selectedId === id) updatePropsPanel();
+    setStatus('이동: ' + id + ' → x:' + nx + ' y:' + ny);
+  }
+  function onUp() {
+    dragState = null;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ── 크기 조절 ──
+var resizeState = null;
+function startResize(e, id) {
+  e.preventDefault();
+  var cfg = layouts[currentScreen][id];
+  var def = DEFAULTS[currentScreen][id] || {};
+  resizeState = {
+    id: id,
+    startMX: e.clientX, startMY: e.clientY,
+    startW: cfg.w || def.w || 100,
+    startH: cfg.h || def.h || 30
+  };
+  function onMove(e) {
+    if (!resizeState) return;
+    var dw = (e.clientX - resizeState.startMX) / SCALE;
+    var dh = (e.clientY - resizeState.startMY) / SCALE;
+    var nw = Math.max(20, Math.round(resizeState.startW + dw));
+    var nh = Math.max(10, Math.round(resizeState.startH + dh));
+    layouts[currentScreen][id].w = nw;
+    layouts[currentScreen][id].h = nh;
+    var el = elems[id].el;
+    positionElem(el, layouts[currentScreen][id], def);
+    if (selectedId === id) updatePropsPanel();
+    setStatus('크기: ' + id + ' → w:' + nw + ' h:' + nh);
+  }
+  function onUp() {
+    resizeState = null;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ── 속성 패널 ──
+function updatePropsPanel() {
+  var header = document.getElementById('props-header');
+  if (!selectedId || !elems[selectedId]) {
+    header.textContent = '선택된 요소 없음';
+    ['p-x','p-y','p-w','p-h','p-fs'].forEach(function(id){ document.getElementById(id).value = ''; });
+    return;
+  }
+  var cfg = layouts[currentScreen][selectedId];
+  var def = DEFAULTS[currentScreen][selectedId] || {};
+  header.textContent = '선택: ' + (cfg.label || selectedId);
+  document.getElementById('p-x').value  = cfg.x  !== undefined ? cfg.x  : (def.x  || '');
+  document.getElementById('p-y').value  = cfg.y  !== undefined ? cfg.y  : (def.y  || '');
+  document.getElementById('p-w').value  = cfg.w  !== undefined ? cfg.w  : (def.w  || '');
+  document.getElementById('p-h').value  = cfg.h  !== undefined ? cfg.h  : (def.h  || '');
+  document.getElementById('p-fs').value = cfg.fontSize !== undefined ? cfg.fontSize : (def.fontSize || '');
+}
+
+function applyProp() {
+  if (!selectedId || !elems[selectedId]) return;
+  var cfg = layouts[currentScreen][selectedId];
+  var def = DEFAULTS[currentScreen][selectedId] || {};
+  var x = parseFloat(document.getElementById('p-x').value);
+  var y = parseFloat(document.getElementById('p-y').value);
+  var w = parseFloat(document.getElementById('p-w').value);
+  var h = parseFloat(document.getElementById('p-h').value);
+  var fs = parseFloat(document.getElementById('p-fs').value);
+  if (!isNaN(x)) cfg.x = x;
+  if (!isNaN(y)) cfg.y = y;
+  if (!isNaN(w) && w > 0) cfg.w = w; else if (isNaN(w)) delete cfg.w;
+  if (!isNaN(h) && h > 0) cfg.h = h; else if (isNaN(h)) delete cfg.h;
+  if (!isNaN(fs) && fs > 0) cfg.fontSize = fs; else if (isNaN(fs)) delete cfg.fontSize;
+  positionElem(elems[selectedId].el, cfg, def);
+  setStatus('수정: ' + selectedId);
+}
+
+// ── 요소 목록 ──
+function buildElemList(s) {
+  var list = document.getElementById('elem-list');
+  list.innerHTML = '';
+  var def = DEFAULTS[s];
+  var colors = { menu:'#FF6600', game:'#4488FF' };
+  Object.keys(def).forEach(function(id) {
+    var item = document.createElement('div');
+    item.className = 'elem-item' + (id === selectedId ? ' active' : '');
+    item.dataset.id = id;
+    var dot = document.createElement('div');
+    dot.className = 'vis-dot';
+    dot.style.background = def[id].color || 'rgba(100,150,255,0.6)';
+    var lbl = document.createElement('span');
+    lbl.textContent = def[id].label || id;
+    item.appendChild(dot);
+    item.appendChild(lbl);
+    item.addEventListener('click', function() { selectElem(id); scrollToElem(id); });
+    list.appendChild(item);
+  });
+}
+
+function scrollToElem(id) {
+  var el = elems[id] && elems[id].el;
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── 저장 ──
+function saveLayout() {
+  var s = currentScreen;
+  var data = {};
+  var layout = layouts[s];
+  var def = DEFAULTS[s];
+  Object.keys(layout).forEach(function(id) {
+    var cfg = layout[id];
+    var d   = def[id] || {};
+    var out = {};
+    if (cfg.x  !== undefined && cfg.x  !== d.x)  out.x  = cfg.x;
+    if (cfg.y  !== undefined && cfg.y  !== d.y)  out.y  = cfg.y;
+    if (cfg.w  !== undefined && cfg.w  !== d.w)  out.w  = cfg.w;
+    if (cfg.h  !== undefined && cfg.h  !== d.h)  out.h  = cfg.h;
+    if (cfg.fontSize !== undefined && cfg.fontSize !== d.fontSize) out.fontSize = cfg.fontSize;
+    if (Object.keys(out).length > 0) data[id] = out;
+  });
+  try {
+    localStorage.setItem('rtd_uiLayout_' + s, JSON.stringify(data));
+    setStatus('✅ 저장 완료 (' + s + ') — 게임을 새로고침하면 반영됩니다.');
+    flashSave();
+  } catch(e) { setStatus('❌ 저장 실패: ' + e.message); }
+}
+
+function flashSave() {
+  var btn = document.querySelector('.tool-btn.save');
+  btn.style.background = '#112211';
+  setTimeout(function(){ btn.style.background = ''; }, 800);
+}
+
+// ── 초기화 ──
+function resetLayout() {
+  if (!confirm(currentScreen + ' 화면 레이아웃을 기본값으로 초기화합니까?')) return;
+  try { localStorage.removeItem('rtd_uiLayout_' + currentScreen); } catch(e) {}
+  var def = DEFAULTS[currentScreen];
+  var result = {};
+  Object.keys(def).forEach(function(id) { result[id] = Object.assign({}, def[id]); });
+  layouts[currentScreen] = result;
+  selectedId = null;
+  renderScreen(currentScreen);
+  setStatus('↩ 기본값으로 초기화됨 (' + currentScreen + ')');
+}
+
+// ── JSON 복사 / 붙여넣기 ──
+function copyJSON() {
+  var s = currentScreen;
+  var data = {};
+  var layout = layouts[s];
+  Object.keys(layout).forEach(function(id) {
+    var cfg = Object.assign({}, layout[id]);
+    delete cfg.label; delete cfg.color; delete cfg.kind;
+    data[id] = cfg;
+  });
+  var json = JSON.stringify(data, null, 2);
+  document.getElementById('json-area').value = json;
+  try { navigator.clipboard.writeText(json); setStatus('📋 클립보드에 복사됨'); }
+  catch(e) { setStatus('📋 JSON 텍스트 영역에서 복사하세요'); }
+}
+
+function pasteJSON() {
+  var txt = document.getElementById('json-area').value.trim();
+  if (!txt) { try { navigator.clipboard.readText().then(function(t){ document.getElementById('json-area').value = t; }); } catch(e){} return; }
+  try {
+    var data = JSON.parse(txt);
+    var def = DEFAULTS[currentScreen];
+    Object.keys(data).forEach(function(id) {
+      if (layouts[currentScreen][id]) {
+        Object.assign(layouts[currentScreen][id], data[id]);
+      }
+    });
+    selectedId = null;
+    renderScreen(currentScreen);
+    setStatus('📥 JSON 적용됨 — 저장 버튼을 눌러 반영하세요');
+  } catch(e) { setStatus('❌ JSON 파싱 오류: ' + e.message); }
+}
+
+// ── 상태바 ──
+function setStatus(msg) {
+  document.getElementById('status-bar').textContent = msg;
+}
+
+// ── 키보드 ──
+document.addEventListener('keydown', function(e) {
+  if (!selectedId || !elems[selectedId]) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  var step = e.shiftKey ? 10 : 1;
+  var cfg = layouts[currentScreen][selectedId];
+  if (e.key === 'ArrowLeft')  { cfg.x = (cfg.x || 0) - step; e.preventDefault(); }
+  if (e.key === 'ArrowRight') { cfg.x = (cfg.x || 0) + step; e.preventDefault(); }
+  if (e.key === 'ArrowUp')    { cfg.y = (cfg.y || 0) - step; e.preventDefault(); }
+  if (e.key === 'ArrowDown')  { cfg.y = (cfg.y || 0) + step; e.preventDefault(); }
+  var el = elems[selectedId].el;
+  var def = DEFAULTS[currentScreen][selectedId] || {};
+  positionElem(el, cfg, def);
+  updatePropsPanel();
+  setStatus('키보드 이동: ' + selectedId + ' → x:' + cfg.x + ' y:' + cfg.y);
+});
+
+// ── 시작 ──
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
