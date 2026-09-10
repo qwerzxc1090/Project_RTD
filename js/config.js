@@ -60,6 +60,9 @@ Game.Config = {
         // 단순 커버리지 배치 시 중거리 타워용으로 남겨둘 최적 슬롯 수
         MID_RANGE_RESERVED_SLOT_COUNT: 4,
         CENTER_OVER_BELOW_COVERAGE_RATIO: 0.95,
+        // 바깥 링은 리스폰 직후 경로(11~12시 → 반시계 방향)를 우선 커버한다.
+        // 시작 슬롯의 최대 보정이며, 경로 진행 순서에 따라 0까지 선형 감소한다.
+        OUTER_SPAWN_PRIORITY_MAX_BONUS: 0.15,
     },
     
     // Economy

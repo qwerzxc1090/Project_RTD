@@ -1189,6 +1189,21 @@ Game.GameScene = new Phaser.Class({
         }, this).filter(function(index) {
             return index !== undefined;
         });
+
+        // 바깥 링 리스폰 우선 순서: 11~12시 사이에서 시작해 몬스터 이동 방향대로 반시계 진행.
+        // 순수 커버리지 점수에 감쇠형 보정을 더할 때만 사용한다.
+        var outerSpawnPriorityCoords = [[4, 0], [3, 0], [2, 0], [1, 0], [0, 0]];
+        for (var ospY = 1; ospY <= 10; ospY++) outerSpawnPriorityCoords.push([0, ospY]);
+        for (var ospX = 1; ospX <= 10; ospX++) outerSpawnPriorityCoords.push([ospX, 10]);
+        for (var ospY2 = 9; ospY2 >= 0; ospY2--) outerSpawnPriorityCoords.push([10, ospY2]);
+        for (var ospX2 = 9; ospX2 >= 5; ospX2--) outerSpawnPriorityCoords.push([ospX2, 0]);
+        this._outerSpawnPriorityRankByIndex = {};
+        outerSpawnPriorityCoords.forEach(function(coord, rank) {
+            var priorityIndex = this._slotIndexByGridKey[coord[0] + ',' + coord[1]];
+            if (priorityIndex !== undefined) this._outerSpawnPriorityRankByIndex[priorityIndex] = rank;
+        }, this);
+        this._outerSpawnPriorityCount = outerSpawnPriorityCoords.length;
+
         // 중거리 타워는 시작 2칸을 건너뛰고 10시→7시 연결 구간부터 사용한다.
         var midOuterCoords = [];
         outerPlacementPhases.slice(1).forEach(function(phase) {
@@ -2161,8 +2176,18 @@ Game.GameScene = new Phaser.Class({
 
                 var bestPoint = this._getSlotPlacementPoint(bestSlot, bestOccupancy);
                 var coverage = this._calcPathCoverageAt(bestPoint.x, bestPoint.y, range, coverageWeights);
-                if (coverage > bestCoverage) {
-                    bestCoverage = coverage;
+                var coverageScore = coverage;
+                var spawnRank = this._outerSpawnPriorityRankByIndex
+                    ? this._outerSpawnPriorityRankByIndex[bsi] : undefined;
+                if (bestSlot.ring === 0 && spawnRank !== undefined) {
+                    var maxBonus = Number(placementCfg.OUTER_SPAWN_PRIORITY_MAX_BONUS);
+                    if (!isFinite(maxBonus) || maxBonus < 0) maxBonus = 0;
+                    var priorityCount = Math.max(1, this._outerSpawnPriorityCount || 1);
+                    var progress = spawnRank / Math.max(1, priorityCount - 1);
+                    coverageScore *= 1 + maxBonus * Math.max(0, 1 - progress);
+                }
+                if (coverageScore > bestCoverage) {
+                    bestCoverage = coverageScore;
                     bestIndex = bsi;
                 }
             }

@@ -10,10 +10,13 @@ const CALCULATION_RUNS_PATH = process.env.CALCULATION_RUNS_PATH || path.join(ROO
 const MAX_REPORT_BYTES = 1024 * 1024;
 const MAX_DEV_SIMULATION_RUN_BYTES = 16 * 1024;
 const MAX_CALCULATION_RUN_BYTES = 256 * 1024;
-const ENABLE_DEV_API = process.env.ENABLE_DEV_API === '1' || process.env.NODE_ENV !== 'production';
-const ENABLE_DEV_TOOLS = process.env.ENABLE_DEV_TOOLS === '1' || process.env.NODE_ENV !== 'production';
+const IS_DEVELOPMENT = process.env.NODE_ENV !== 'production';
+// Development-only facilities must never be re-enabled in a production process.
+const ENABLE_DEV_API = IS_DEVELOPMENT && process.env.ENABLE_DEV_API !== '0';
+const ENABLE_DEV_TOOLS = IS_DEVELOPMENT && process.env.ENABLE_DEV_TOOLS !== '0';
 const PUBLIC_FILES = new Set(['/index.html', '/style.css']);
 const PUBLIC_DIRECTORIES = ['/js/', '/assets/'];
+const DEV_TOOL_DIRECTORY = '/tools/';
 
 const MIME = {
     '.html': 'text/html; charset=utf-8',
@@ -54,13 +57,19 @@ function sendJson(res, statusCode, value) {
 }
 
 function setPublicHeaders(res, requestPath) {
+    // The development data editor is a self-contained legacy page with an
+    // inline initializer. It is never served in production.
+    const isDevelopmentTool = IS_DEVELOPMENT && requestPath.startsWith(DEV_TOOL_DIRECTORY);
+    const scriptSource = isDevelopmentTool
+        ? "'self' 'unsafe-inline' https://cdn.jsdelivr.net"
+        : "'self' https://cdn.jsdelivr.net";
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     res.setHeader(
         'Content-Security-Policy',
-        "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'"
+        "default-src 'self'; script-src " + scriptSource + "; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'"
     );
     var mustRevalidate = requestPath === '/index.html' || requestPath.endsWith('.js') ||
         requestPath.startsWith('/assets/data/') || requestPath.startsWith('/assets/Art/projectiles/');
@@ -68,7 +77,9 @@ function setPublicHeaders(res, requestPath) {
 }
 
 function isPublicGamePath(requestPath) {
-    return PUBLIC_FILES.has(requestPath) || PUBLIC_DIRECTORIES.some(prefix => requestPath.startsWith(prefix));
+    return PUBLIC_FILES.has(requestPath) ||
+        PUBLIC_DIRECTORIES.some(prefix => requestPath.startsWith(prefix)) ||
+        (IS_DEVELOPMENT && requestPath.startsWith(DEV_TOOL_DIRECTORY));
 }
 
 function handleSimulationReport(req, res) {
