@@ -5,8 +5,10 @@ const path = require('path');
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = __dirname;
 const LIVE_REPORT_PATH = path.join(ROOT, 'simulation-live-report.json');
+const DEV_SIMULATION_RUNS_PATH = process.env.DEV_SIMULATION_RUNS_PATH || path.join(ROOT, 'dev-simulation-runs.ndjson');
 const CALCULATION_RUNS_PATH = process.env.CALCULATION_RUNS_PATH || path.join(ROOT, 'calculation-runs.json');
 const MAX_REPORT_BYTES = 1024 * 1024;
+const MAX_DEV_SIMULATION_RUN_BYTES = 16 * 1024;
 const MAX_CALCULATION_RUN_BYTES = 256 * 1024;
 const ENABLE_DEV_API = process.env.ENABLE_DEV_API === '1' || process.env.NODE_ENV !== 'production';
 const ENABLE_DEV_TOOLS = process.env.ENABLE_DEV_TOOLS === '1' || process.env.NODE_ENV !== 'production';
@@ -123,6 +125,55 @@ function handleSimulationReport(req, res) {
         } catch (error) {
             sendJson(res, 400, { ok: false, error: 'invalid_json' });
         }
+    });
+}
+
+function normalizeDevSimulationRun(value) {
+    if (!value || typeof value !== 'object') return null;
+    var round = Math.floor(Number(value.round));
+    var timestamp = Math.floor(Number(value.ts));
+    var time = Math.max(0, Math.floor(Number(value.time) || 0));
+    var score = Math.max(0, Math.floor(Number(value.gs) || 0));
+    if (!Number.isFinite(round) || round < 1 || round > 52 || !Number.isFinite(timestamp) || timestamp < 1) return null;
+
+    var failCategory = value.failCategory === 'boss' ? 'boss' : (value.failCategory === 'normal' ? 'normal' : null);
+    var failReason = typeof value.failReason === 'string' && /^[a-z_]{1,32}$/.test(value.failReason)
+        ? value.failReason : null;
+    var hpAvg = {};
+    ['early', 'mid', 'late'].forEach(group => {
+        var hp = Number(value.hpAvg && value.hpAvg[group]);
+        if (Number.isFinite(hp) && hp >= 0 && hp <= 50) hpAvg[group] = Math.round(hp * 10) / 10;
+    });
+    return {
+        win: !!value.win,
+        round: round,
+        ts: timestamp,
+        time: time,
+        gs: score,
+        hpAvg: hpAvg,
+        failCategory: failCategory,
+        failReason: failReason
+    };
+}
+
+function handleDevSimulationRun(req, res) {
+    if (req.method !== 'POST') {
+        sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
+        return;
+    }
+    readJsonBody(req, res, MAX_DEV_SIMULATION_RUN_BYTES, body => {
+        var run = normalizeDevSimulationRun(body);
+        if (!run) {
+            sendJson(res, 400, { ok: false, error: 'invalid_run' });
+            return;
+        }
+        fs.appendFile(DEV_SIMULATION_RUNS_PATH, JSON.stringify(run) + '\n', 'utf8', error => {
+            if (error) {
+                sendJson(res, 500, { ok: false, error: error.code || 'write_failed' });
+                return;
+            }
+            sendJson(res, 201, { ok: true });
+        });
     });
 }
 
@@ -297,6 +348,14 @@ const server = http.createServer((req, res) => {
                 return;
             }
             handleSimulationReport(req, res);
+            return;
+        }
+        if (rawPath === '/api/dev-simulation-runs') {
+            if (!ENABLE_DEV_API) {
+                sendJson(res, 404, { ok: false, error: 'not_found' });
+                return;
+            }
+            handleDevSimulationRun(req, res);
             return;
         }
         if (rawPath === '/api/calculation-runs') {

@@ -29,3 +29,4 @@ calculation-runs.json
 calculation-runs.json.tmp
 simulation-live-report.json
 simulation-live-report.json.tmp
+dev-simulation-runs.ndjson

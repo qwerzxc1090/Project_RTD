@@ -2356,8 +2356,6 @@ Game.GameScene = new Phaser.Class({
                 (this._simActiveWave && this._simActiveWave.isBoss ? 'boss_life' : 'normal_life'));
             var failureCategory = victory ? 'clear' :
                 (failureReason.indexOf('boss_') === 0 ? 'boss' : 'normal');
-            var finalLives = 0;
-            try { finalLives = Game.EconomySystem.getLives(); } catch(e) {}
             var playTimeSec = this._playStartTime ? Math.floor((Date.now() - this._playStartTime) / 1000) : 0;
             var simStats = { total: 0, clears: 0, rate: 0, avgFail: 0, avgTime: 0, thisTime: playTimeSec,
                              avgGsClear: 0, avgGsFail: 0 };
@@ -2390,23 +2388,38 @@ Game.GameScene = new Phaser.Class({
                 }
                 // HUD의 ★ 점수와 동일한 평균 등급 점수로 기록한다.
                 var avgGradeScore = towerCount > 0 ? Math.round(totalGradeScore / towerCount) : 0;
-                var diagnosticCoverageCount = this._simDiagnostics.coverageCount || 0;
-                var diagnostics = {
-                    gachaCount: this._simDiagnostics.gachaCount || 0,
-                    synthesisCount: this._simDiagnostics.synthesisCount || 0,
-                    finalTowerCount: towerCount,
-                    avgRoundStartDps: this._simDiagnostics.roundStartDpsCount > 0
-                        ? Math.round(this._simDiagnostics.roundStartDpsSum /
-                            this._simDiagnostics.roundStartDpsCount) : 0,
-                    avgPathCoverage: diagnosticCoverageCount > 0
-                        ? Math.round(this._simDiagnostics.coverageSum / diagnosticCoverageCount * 10) / 10 : 0
-                };
-                results.push({ win: victory, round: currentRound, ts: Date.now(), time: playTimeSec,
+                var run = { win: victory, round: currentRound, ts: Date.now(), time: playTimeSec,
                     gs: avgGradeScore, hpAvg: simHpAverages,
-                    failCategory: failureCategory, failReason: failureReason,
-                    failLives: victory ? null : finalLives, diagnostics: diagnostics });
+                    failCategory: failureCategory, failReason: failureReason };
+                // 서버 기록은 로컬 저장소 처리보다 먼저 요청한다. 브라우저 저장소 자체가
+                // 사용할 수 없는 경우에도 이번 판의 수집 데이터는 남긴다.
+                try {
+                    fetch('/api/dev-simulation-runs', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(run),
+                        keepalive: true
+                    }).catch(function(error) {
+                        console.warn('[SimRecord] 서버 기록 실패:', error);
+                    });
+                } catch(serverRecordError) {
+                    console.warn('[SimRecord] 서버 기록 요청 실패:', serverRecordError);
+                }
+                // 로컬 저장소는 화면용 최근 표본이다. 진단용 세부 객체를 제외해 용량을 줄이고,
+                // 할당량에 도달해도 가장 오래된 표본만 제거해 이번 결과는 반드시 기록한다.
+                results.push(run);
                 if (results.length > 9999) results = results.slice(-9999);
-                localStorage.setItem(resultsKey, JSON.stringify(results));
+                var stored = false;
+                while (!stored) {
+                    try {
+                        localStorage.setItem(resultsKey, JSON.stringify(results));
+                        stored = true;
+                    } catch(storageError) {
+                        if (results.length <= 1) throw storageError;
+                        results = results.slice(-Math.max(1, Math.floor(results.length * 0.75)));
+                        console.warn('[SimRecord] 저장소 용량으로 오래된 DEV 표본을 정리했습니다. 남은 표본:', results.length);
+                    }
+                }
 
                 var wins  = results.filter(function(r){ return r.win; });
                 var fails = results.filter(function(r){ return !r.win; });
