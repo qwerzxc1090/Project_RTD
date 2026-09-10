@@ -1,91 +1,123 @@
 /**
- * data-editor.html의 DEFAULT_ 값들을 stats.json + config.js 실제값으로 동기화
+ * stats.json의 런타임 데이터를 data-editor.html 기본값과 동기화한다.
+ * 시스템 설정은 config.js와 수동으로 함께 관리한다.
  */
 const fs = require('fs');
+const path = require('path');
 
-const stats = JSON.parse(fs.readFileSync('assets/data/stats.json', 'utf8'));
-let html = fs.readFileSync('tools/data-editor.html', 'utf8');
+const statsPath = 'assets/data/stats.json';
+const editorPath = 'tools/data-editor.html';
+const outputPath = process.argv[2] || editorPath;
+const stats = JSON.parse(fs.readFileSync(statsPath, 'utf8'));
+let html = fs.readFileSync(editorPath, 'utf8');
 
-// ─────────────────────────────────────────────
-// 1. DEFAULT_CONFIG
-// ─────────────────────────────────────────────
-const newConfig = `const DEFAULT_CONFIG = {
-  INITIAL_GOLD: 500,
-  GACHA_COST: 50,
-  ROUND_BONUS_MULTIPLIER: 4.0,
-  INITIAL_LIVES: 50,
-  MAX_MONSTERS: 50,
-  TOTAL_ROUNDS: 50,
-  SPAWN_INTERVAL: 1600,
-  GACHA_RATES: {
-    normal: 0.5000, rare: 0.3310, ancient: 0.1020, relic: 0.0510,
-    saga: 0.0080, legend: 0.0050, epic: 0.0020, myth: 0.0008, primordial: 0.00019
-  },
-  TYPE_AFFINITY: {
-    normal:    { small: 1.00, mixed: 1.00, large: 1.00 },
-    vibration: { small: 1.00, mixed: 0.50, large: 0.25 },
-    explosive: { small: 0.50, mixed: 0.75, large: 1.00 }
-  }
-};`;
+function replaceConst(name, value) {
+    const marker = 'const ' + name + ' = ';
+    const start = html.indexOf(marker);
+    if (start === -1) throw new Error(name + ' 시작 위치를 찾을 수 없습니다.');
 
-html = html.replace(/const DEFAULT_CONFIG = \{[\s\S]*?\};(\r?\n)/, newConfig + '$1');
+    const valueStart = start + marker.length;
+    const opening = html[valueStart];
+    const closing = opening === '[' ? ']' : opening === '{' ? '}' : null;
+    if (!closing) throw new Error(name + ' 값이 배열/객체가 아닙니다.');
 
-// ─────────────────────────────────────────────
-// 2. DEFAULT_UNITS (stats.json → units 배열)
-// ─────────────────────────────────────────────
-const unitLines = Object.values(stats.units).map(u => {
-  const ga = u.gachaAvailable;
-  return `  {id:"${u.id}", name:"${u.name}", tier:"${u.tier}", attackType:"${u.attackType}", damage:${u.damage}, attackSpeed:${u.attackSpeed}, range:${u.range}, skillId:${u.skillId}, gradeScore:${u.gradeScore}, gachaAvailable:${ga}}`;
+    let depth = 0;
+    let quote = null;
+    let escaped = false;
+    let end = -1;
+    for (let i = valueStart; i < html.length; i++) {
+        const ch = html[i];
+        if (quote) {
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'" || ch === '`') {
+            quote = ch;
+            continue;
+        }
+        if (ch === opening) depth++;
+        else if (ch === closing) {
+            depth--;
+            if (depth === 0) {
+                end = i + 1;
+                break;
+            }
+        }
+    }
+    if (end === -1) throw new Error(name + ' 끝 위치를 찾을 수 없습니다.');
+
+    html = html.slice(0, valueStart) + JSON.stringify(value, null, 2) + html.slice(end);
+}
+
+replaceConst('DEFAULT_UNITS', stats.units);
+replaceConst('DEFAULT_SKILLS', stats.skills);
+replaceConst('DEFAULT_MONSTERS', Object.values(stats.monsters));
+replaceConst('DEFAULT_WAVES', stats.waves);
+replaceConst('DEFAULT_DPS_MODE', stats.dpsMode);
+
+const RETRYABLE_WRITE_ERRORS = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const MAX_WRITE_ATTEMPTS = 5;
+
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function runWriteStepWithRetry(label, operation) {
+    for (let attempt = 1; attempt <= MAX_WRITE_ATTEMPTS; attempt++) {
+        try {
+            return await operation();
+        } catch (error) {
+            const retryable = RETRYABLE_WRITE_ERRORS.has(error.code);
+            if (!retryable || attempt === MAX_WRITE_ATTEMPTS) throw error;
+
+            const delayMs = attempt * 100;
+            console.warn(
+                `[sync_defaults] ${error.code}: ${label} 재시도 ` +
+                `${attempt}/${MAX_WRITE_ATTEMPTS - 1} (${delayMs}ms 후)`
+            );
+            await wait(delayMs);
+        }
+    }
+}
+
+async function writeAtomicWithRetry(targetPath, content) {
+    const resolvedTarget = path.resolve(targetPath);
+    const targetDir = path.dirname(resolvedTarget);
+    const tempPath = path.join(
+        targetDir,
+        '.' + path.basename(resolvedTarget) + '.' + process.pid + '.' + Date.now() + '.tmp'
+    );
+
+    // 대상 파일과 같은 디렉터리에 먼저 기록해야 최종 rename이 원자적으로 처리된다.
+    await fs.promises.access(targetDir, fs.constants.W_OK);
+    await runWriteStepWithRetry('임시 파일 생성', function() {
+        return fs.promises.writeFile(tempPath, content, { encoding: 'utf8', flag: 'wx' });
+    });
+
+    try {
+        await runWriteStepWithRetry('파일 교체', function() {
+            return fs.promises.rename(tempPath, resolvedTarget);
+        });
+    } finally {
+        // rename 성공 시에는 이미 사라졌고, 실패 시에는 임시 파일을 정리한다.
+        await fs.promises.unlink(tempPath).catch(() => {});
+    }
+}
+
+async function main() {
+    await writeAtomicWithRetry(outputPath, html);
+    console.log(outputPath + ' defaults synced:');
+    console.log('  units:', stats.units.length);
+    console.log('  skills:', Object.keys(stats.skills).length);
+    console.log('  monsters:', Object.keys(stats.monsters).length);
+    console.log('  waves:', stats.waves.length);
+}
+
+main().catch(error => {
+    console.error(
+        `[sync_defaults] ${outputPath} 쓰기 실패 (${error.code || 'UNKNOWN'}): ${error.message}`
+    );
+    process.exitCode = 1;
 });
-
-const newUnits = `const DEFAULT_UNITS = [\n${unitLines.join(',\n')}\n];`;
-
-html = html.replace(/const DEFAULT_UNITS = \[[\s\S]*?\];(\r?\n)/, newUnits + '$1');
-
-// ─────────────────────────────────────────────
-// 3. DEFAULT_SKILLS (stats.json → skills 객체)
-// ─────────────────────────────────────────────
-const skillEntries = Object.entries(stats.skills).map(([k, s]) => {
-  let line = `  "${k}":{id:${s.id},name:"${s.name}",nameEn:"${s.nameEn}",desc:"${s.desc}",projectileSpeed:${s.projectileSpeed},displaySize:${s.displaySize},fallbackShape:"${s.fallbackShape}"`;
-  if (s.fallbackColor) line += `,fallbackColor:"${s.fallbackColor}"`;
-  if (s.imagePath) line += `,imagePath:"${s.imagePath}"`;
-  if (s.bounceCount !== undefined) line += `,bounceCount:${s.bounceCount},bounceRange:${s.bounceRange},bounceDamageMultiplier:${s.bounceDamageMultiplier}`;
-  line += '}';
-  return line;
-});
-
-const newSkills = `const DEFAULT_SKILLS = {\n${skillEntries.join(',\n')}\n};`;
-
-html = html.replace(/const DEFAULT_SKILLS = \{[\s\S]*?\};(\r?\n)/, newSkills + '$1');
-
-// ─────────────────────────────────────────────
-// 4. DEFAULT_MONSTERS (stats.json → monsters 배열)
-// ─────────────────────────────────────────────
-const monsterLines = Object.values(stats.monsters).map(m => {
-  const img = m.imagePath || '';
-  return `    { id: ${String(m.id).padStart(2)}, name: '${m.name}', type: '${m.type}', hp: ${m.hp}, speed: ${m.speed}, goldReward: ${m.goldReward}, isBoss: ${m.isBoss}, imagePath: '${img}' }`;
-});
-
-const newMonsters = `const DEFAULT_MONSTERS = [\n${monsterLines.join(',\n')}\n    ];`;
-
-html = html.replace(/const DEFAULT_MONSTERS = \[[\s\S]*?\];(\r?\n)/, newMonsters + '$1');
-
-// ─────────────────────────────────────────────
-// 5. DEFAULT_WAVES (stats.json → waves 배열)
-// ─────────────────────────────────────────────
-const waveLines = stats.waves.map(w => {
-  return `        { round: ${w.round}, monsterId: ${w.monsterId}, count: ${w.count}, timeLimit: ${w.timeLimit}, timeAttack: ${w.timeAttack} }`;
-});
-
-const newWaves = `const DEFAULT_WAVES = [\n${waveLines.join(',\n')}\n    ];`;
-
-html = html.replace(/const DEFAULT_WAVES = \[[\s\S]*?\];(\r?\n)/, newWaves + '$1');
-
-// ─────────────────────────────────────────────
-fs.writeFileSync('tools/data-editor.html', html);
-console.log('✅ data-editor.html 동기화 완료');
-console.log('  - DEFAULT_CONFIG: config.js 기준값');
-console.log('  - DEFAULT_UNITS:', Object.keys(stats.units).length, '개');
-console.log('  - DEFAULT_SKILLS:', Object.keys(stats.skills).length, '개');
-console.log('  - DEFAULT_MONSTERS:', Object.keys(stats.monsters).length, '개');
-console.log('  - DEFAULT_WAVES:', stats.waves.length, '개');

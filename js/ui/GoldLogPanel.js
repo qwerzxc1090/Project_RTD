@@ -83,7 +83,8 @@ Game.GoldLogPanel.prototype._drawBg = function(px, py, PW, PH) {
 
 Game.GoldLogPanel.prototype._push = function(amount, label, color) {
     var prefix = amount >= 0 ? '+' : '-';
-    var amtStr = prefix + Math.abs(amount).toFixed(1) + 'G';
+    // 실제 골드는 소수값으로 누적하지만 획득/연출 표시는 정수만 사용한다.
+    var amtStr = prefix + Math.floor(Math.abs(amount)) + 'G';
     var entry  = {
         text:  amtStr + '  ' + label,
         color: color || (amount >= 0 ? '#44FF88' : '#FF6644')

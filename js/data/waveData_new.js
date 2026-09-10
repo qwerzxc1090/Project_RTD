@@ -102,10 +102,10 @@ var Game = window.Game || {};
             
             if (loadedWaves) {
                 waves = loadedWaves;
-                // 기존 데이터에 timeAttack 필드가 없을 수 있으므로 하위 호환성 처리
+                // timeAttack은 스테이지 데이터에 명시된 값만 사용한다.
                 waves.forEach(function(w) {
                     if (w.timeAttack === undefined) {
-                        w.timeAttack = (w.timeLimit > 0 && w.isBoss);
+                        w.timeAttack = false;
                     }
                 });
             }

@@ -144,22 +144,25 @@ tr.tier-primordial{background:rgba(0,255,255,.06);}
 // DEFAULT DATA
 // ═══════════════════════════════════════════════
 const DEFAULT_CONFIG = {
-  INITIAL_GOLD: 1000,
+  INITIAL_GOLD: 500,
   GACHA_COST: 100,
   ROUND_BONUS_MULTIPLIER: 0,
   INITIAL_LIVES: 50,
   MAX_MONSTERS: 50,
-  TOTAL_ROUNDS: 50,
+  TOTAL_ROUNDS: 52,
   SPAWN_INTERVAL: 2806,
   CRITICAL_DAMAGE_RATIO: 0.5,
   BETWEEN_ROUND_DELAY: 1000,
   BETWEEN_ROUND_DELAY_BOSS_START: 3000,
   BETWEEN_ROUND_DELAY_BOSS_END: 3000,
   GACHA_RATES: {
-    normal: 50000, rare: 33100, ancient: 10200, relic: 5100,
+    normal: 50001, rare: 33100, ancient: 10200, relic: 5100,
     saga: 800, legend: 500, epic: 200, myth: 80, primordial: 19
   },
-  TYPE_AFFINITY: {
+  SYNTHESIS_RATES: {
+    rare: 57512, ancient: 26154, relic: 16334
+  },
+  TYPE_EFFECTIVENESS: {
     normal:    { small: 1.00, general: 1.00, large: 1.00 },
     vibration: { small: 1.00, general: 0.50, large: 0.25 },
     explosive: { small: 0.50, general: 0.75, large: 1.00 }
@@ -167,263 +170,2645 @@ const DEFAULT_CONFIG = {
 };
 
 const DEFAULT_UNITS = [
-  // ── 기본 타워 (27개) ──────────────────────────────────────────────────
-  {id:"n1", name:"병사", tier:"normal", attackType:"normal", damage: 51, attackSpeed:1000, range:120, skillId:1, gradeScore:100, gachaAvailable:true, criticalRate:500},
-  {id:"n2", name:"폭파병", tier:"normal", attackType:"explosive", damage: 74, attackSpeed:1300, range:100, skillId:3, gradeScore:73, gachaAvailable:true, criticalRate:500},
-  {id:"n3", name:"진동병", tier:"normal", attackType:"vibration", damage: 81, attackSpeed:700, range:132, skillId:3, gradeScore:126, gachaAvailable:true, criticalRate:500},
-  {id:"r1", name:"기사", tier:"rare", attackType:"normal", damage: 74, attackSpeed:900, range:130, skillId:2, gradeScore:152, gachaAvailable:true, criticalRate:500},
-  {id:"r2", name:"포병", tier:"rare", attackType:"explosive", damage: 111, attackSpeed:1170, range:110, skillId:3, gradeScore:118, gachaAvailable:true, criticalRate:500},
-  {id:"r3", name:"음파사", tier:"rare", attackType:"vibration", damage: 114, attackSpeed:630, range:143, skillId:1, gradeScore:190, gachaAvailable:true, criticalRate:500},
-  {id:"a1", name:"마법사", tier:"ancient", attackType:"normal", damage: 145, attackSpeed:800, range:145, skillId:2, gradeScore:334, gachaAvailable:true, criticalRate:500},
-  {id:"a2", name:"화염포", tier:"ancient", attackType:"explosive", damage: 225, attackSpeed:1040, range:123, skillId:1, gradeScore:261, gachaAvailable:true, criticalRate:500},
-  {id:"a3", name:"진동사", tier:"ancient", attackType:"vibration", damage: 232, attackSpeed:560, range:160, skillId:1, gradeScore:421, gachaAvailable:true, criticalRate:500},
-  {id:"e1", name:"성기사", tier:"relic", attackType:"normal", damage: 251, attackSpeed:720, range:160, skillId:1, gradeScore:669, gachaAvailable:true, criticalRate:500},
-  {id:"e2", name:"포격사", tier:"relic", attackType:"explosive", damage: 390, attackSpeed:936, range:136, skillId:3, gradeScore:525, gachaAvailable:true, criticalRate:500},
-  {id:"e3", name:"공명사", tier:"relic", attackType:"vibration", damage: 399, attackSpeed:504, range:176, skillId:3, gradeScore:841, gachaAvailable:true, criticalRate:500},
-  {id:"s1", name:"대마법사", tier:"saga", attackType:"normal", damage:1131, attackSpeed:600, range:190, skillId:3, gradeScore:4769, gachaAvailable:true, criticalRate:500},
-  {id:"s2", name:"파괴자", tier:"saga", attackType:"explosive", damage:1751, attackSpeed:780, range:162, skillId:2, gradeScore:3754, gachaAvailable:true, criticalRate:500},
-  {id:"s3", name:"공명자", tier:"saga", attackType:"vibration", damage:1776, attackSpeed:420, range:209, skillId:2, gradeScore:5996, gachaAvailable:true, criticalRate:500},
-  {id:"l1", name:"전설 전사", tier:"legend", attackType:"normal", damage:1557, attackSpeed:550, range:208, skillId:1, gradeScore:6913, gachaAvailable:true, criticalRate:500},
-  {id:"l2", name:"전설 포격", tier:"legend", attackType:"explosive", damage:2411, attackSpeed:715, range:177, skillId:2, gradeScore:5438, gachaAvailable:true, criticalRate:500},
-  {id:"l3", name:"전설 음률", tier:"legend", attackType:"vibration", damage:2481, attackSpeed:385, range:210, skillId:2, gradeScore:8695, gachaAvailable:true, criticalRate:500},
-  {id:"ep1", name:"에픽 현자", tier:"epic", attackType:"normal", damage:3215, attackSpeed:480, range:240, skillId:3, gradeScore:17629, gachaAvailable:true, criticalRate:500},
-  {id:"ep2", name:"에픽 파괴", tier:"epic", attackType:"explosive", damage:5709, attackSpeed:624, range:210, skillId:1, gradeScore:14242, gachaAvailable:true, criticalRate:500},
-  {id:"ep3", name:"에픽 공명", tier:"epic", attackType:"vibration", damage:4788, attackSpeed:350, range:264, skillId:2, gradeScore:22168, gachaAvailable:true, criticalRate:500},
-  {id:"m1", name:"신화 신관", tier:"myth", attackType:"normal", damage:6101, attackSpeed:400, range:280, skillId:3, gradeScore:45227, gachaAvailable:true, criticalRate:500},
-  {id:"m2", name:"신화 파괴", tier:"myth", attackType:"explosive", damage:11085, attackSpeed:520, range:238, skillId:2, gradeScore:35477, gachaAvailable:true, criticalRate:500},
-  {id:"m3", name:"신화 진동", tier:"myth", attackType:"vibration", damage:10892, attackSpeed:350, range:308, skillId:1, gradeScore:56842, gachaAvailable:true, criticalRate:500},
-  {id:"p1", name:"태초의 존재", tier:"primordial", attackType:"normal", damage:21112, attackSpeed:350, range:323, skillId:3, gradeScore:199458, gachaAvailable:true, criticalRate:500},
-  {id:"p2", name:"태초의 파괴", tier:"primordial", attackType:"explosive", damage:27954, attackSpeed:390, range:323, skillId:2, gradeScore:156493, gachaAvailable:true, criticalRate:500},
-  {id:"p3", name:"태초의 진동", tier:"primordial", attackType:"vibration", damage:47380, attackSpeed:350, range:323, skillId:3, gradeScore:250670, gachaAvailable:true, criticalRate:500},
-  // ── _연 타워 (27개) ──────────────────────────────────────────────────
-  {id:"n1_yeon", name:"병사_연", tier:"normal", attackType:"normal", damage: 31, attackSpeed:1400, range:120, skillId:4, gradeScore:100, gachaAvailable:true, criticalRate:500},
-  {id:"r1_yeon", name:"기사_연", tier:"rare", attackType:"normal", damage: 46, attackSpeed:1260, range:130, skillId:4, gradeScore:152, gachaAvailable:true, criticalRate:500},
-  {id:"a1_yeon", name:"마법사_연", tier:"ancient", attackType:"normal", damage: 95, attackSpeed:1120, range:145, skillId:4, gradeScore:334, gachaAvailable:true, criticalRate:500},
-  {id:"e1_yeon", name:"성기사_연", tier:"relic", attackType:"normal", damage: 156, attackSpeed:1008, range:160, skillId:4, gradeScore:669, gachaAvailable:true, criticalRate:500},
-  {id:"s1_yeon", name:"대마법사_연", tier:"saga", attackType:"normal", damage:708, attackSpeed:840, range:190, skillId:4, gradeScore:4769, gachaAvailable:true, criticalRate:500},
-  {id:"l1_yeon", name:"전설 전사_연", tier:"legend", attackType:"normal", damage:976, attackSpeed:770, range:208, skillId:4, gradeScore:6913, gachaAvailable:true, criticalRate:500},
-  {id:"ep1_yeon", name:"에픽 현자_연", tier:"epic", attackType:"normal", damage:2014, attackSpeed:672, range:240, skillId:4, gradeScore:17629, gachaAvailable:true, criticalRate:500},
-  {id:"m1_yeon", name:"신화 신관_연", tier:"myth", attackType:"normal", damage:3821, attackSpeed:560, range:280, skillId:4, gradeScore:45227, gachaAvailable:true, criticalRate:500},
-  {id:"p1_yeon", name:"태초의 존재_연", tier:"primordial", attackType:"normal", damage:11335, attackSpeed:420, range:323, skillId:4, gradeScore:199458, gachaAvailable:true, criticalRate:500},
-  {id:"n2_yeon", name:"폭파병_연", tier:"normal", attackType:"explosive", damage: 38, attackSpeed:1400, range:120, skillId:4, gradeScore:100, gachaAvailable:true, criticalRate:500},
-  {id:"r2_yeon", name:"포병_연", tier:"rare", attackType:"explosive", damage: 54, attackSpeed:1260, range:130, skillId:4, gradeScore:152, gachaAvailable:true, criticalRate:500},
-  {id:"a2_yeon", name:"화염포_연", tier:"ancient", attackType:"explosive", damage: 108, attackSpeed:1120, range:145, skillId:4, gradeScore:334, gachaAvailable:true, criticalRate:500},
-  {id:"e2_yeon", name:"포격사_연", tier:"relic", attackType:"explosive", damage: 188, attackSpeed:1008, range:160, skillId:4, gradeScore:669, gachaAvailable:true, criticalRate:500},
-  {id:"s2_yeon", name:"파괴자_연", tier:"saga", attackType:"explosive", damage:839, attackSpeed:840, range:190, skillId:4, gradeScore:4769, gachaAvailable:true, criticalRate:500},
-  {id:"l2_yeon", name:"전설 포격_연", tier:"legend", attackType:"explosive", damage:1156, attackSpeed:770, range:208, skillId:4, gradeScore:6913, gachaAvailable:true, criticalRate:500},
-  {id:"ep2_yeon", name:"에픽 파괴_연", tier:"epic", attackType:"explosive", damage:2385, attackSpeed:672, range:240, skillId:4, gradeScore:17629, gachaAvailable:true, criticalRate:500},
-  {id:"m2_yeon", name:"신화 파괴_연", tier:"myth", attackType:"explosive", damage:4526, attackSpeed:560, range:280, skillId:4, gradeScore:45227, gachaAvailable:true, criticalRate:500},
-  {id:"p2_yeon", name:"태초의 파괴_연", tier:"primordial", attackType:"explosive", damage:13424, attackSpeed:420, range:323, skillId:4, gradeScore:199458, gachaAvailable:true, criticalRate:500},
-  {id:"n3_yeon", name:"진동병_연", tier:"normal", attackType:"vibration", damage: 36, attackSpeed:1400, range:120, skillId:4, gradeScore:100, gachaAvailable:true, criticalRate:500},
-  {id:"r3_yeon", name:"음파사_연", tier:"rare", attackType:"vibration", damage: 52, attackSpeed:1260, range:130, skillId:4, gradeScore:152, gachaAvailable:true, criticalRate:500},
-  {id:"a3_yeon", name:"진동사_연", tier:"ancient", attackType:"vibration", damage: 106, attackSpeed:1120, range:145, skillId:4, gradeScore:334, gachaAvailable:true, criticalRate:500},
-  {id:"e3_yeon", name:"공명사_연", tier:"relic", attackType:"vibration", damage: 186, attackSpeed:1008, range:160, skillId:4, gradeScore:669, gachaAvailable:true, criticalRate:500},
-  {id:"s3_yeon", name:"공명자_연", tier:"saga", attackType:"vibration", damage:824, attackSpeed:840, range:190, skillId:4, gradeScore:4769, gachaAvailable:true, criticalRate:500},
-  {id:"l3_yeon", name:"전설 음률_연", tier:"legend", attackType:"vibration", damage:1137, attackSpeed:770, range:208, skillId:4, gradeScore:6913, gachaAvailable:true, criticalRate:500},
-  {id:"ep3_yeon", name:"에픽 공명_연", tier:"epic", attackType:"vibration", damage:2344, attackSpeed:672, range:240, skillId:4, gradeScore:17629, gachaAvailable:true, criticalRate:500},
-  {id:"m3_yeon", name:"신화 진동_연", tier:"myth", attackType:"vibration", damage:4447, attackSpeed:560, range:280, skillId:4, gradeScore:45227, gachaAvailable:true, criticalRate:500},
-  {id:"p3_yeon", name:"태초의 진동_연", tier:"primordial", attackType:"vibration", damage:13189, attackSpeed:420, range:323, skillId:4, gradeScore:199458, gachaAvailable:true, criticalRate:500},
-  // ── _독 타워 (27개) ──────────────────────────────────────────────────
-  {id:"n1_dok", name:"병사_독", tier:"normal", attackType:"normal", damage: 5, attackSpeed:2500, range:150, skillId:5, gradeScore:73, gachaAvailable:true, criticalRate:0},
-  {id:"r1_dok", name:"기사_독", tier:"rare", attackType:"normal", damage: 9, attackSpeed:2375, range:152, skillId:5, gradeScore:118, gachaAvailable:true, criticalRate:0},
-  {id:"a1_dok", name:"마법사_독", tier:"ancient", attackType:"normal", damage: 18, attackSpeed:2250, range:172, skillId:5, gradeScore:261, gachaAvailable:true, criticalRate:0},
-  {id:"e1_dok", name:"성기사_독", tier:"relic", attackType:"normal", damage: 32, attackSpeed:2125, range:174, skillId:5, gradeScore:525, gachaAvailable:true, criticalRate:0},
-  {id:"s1_dok", name:"대마법사_독", tier:"saga", attackType:"normal", damage:207, attackSpeed:2000, range:177, skillId:5, gradeScore:3754, gachaAvailable:true, criticalRate:0},
-  {id:"l1_dok", name:"전설 전사_독", tier:"legend", attackType:"normal", damage:296, attackSpeed:1875, range:189, skillId:5, gradeScore:5438, gachaAvailable:true, criticalRate:0},
-  {id:"ep1_dok", name:"에픽 현자_독", tier:"epic", attackType:"normal", damage:761, attackSpeed:1750, range:190, skillId:5, gradeScore:14242, gachaAvailable:true, criticalRate:0},
-  {id:"m1_dok", name:"신화 신관_독", tier:"myth", attackType:"normal", damage:1572, attackSpeed:1625, range:193, skillId:5, gradeScore:35477, gachaAvailable:true, criticalRate:0},
-  {id:"p1_dok", name:"태초의 존재_독", tier:"primordial", attackType:"normal", damage:5076, attackSpeed:1500, range:210, skillId:5, gradeScore:156493, gachaAvailable:true, criticalRate:0},
-  {id:"n2_dok",  name:"폭파병_독",     tier:"normal",     attackType:"explosive", damage: 6,    attackSpeed:2500, range:150, skillId:5, gradeScore:73,     gachaAvailable:true, criticalRate:0},
-  {id:"r2_dok",  name:"포병_독",       tier:"rare",       attackType:"explosive", damage: 12,    attackSpeed:2375, range:152, skillId:5, gradeScore:118,    gachaAvailable:true, criticalRate:0},
-  {id:"a2_dok",  name:"화염포_독",     tier:"ancient",    attackType:"explosive", damage: 24,    attackSpeed:2250, range:172, skillId:5, gradeScore:261,    gachaAvailable:true, criticalRate:0},
-  {id:"e2_dok",  name:"포격사_독",     tier:"relic",      attackType:"explosive", damage: 44,   attackSpeed:2125, range:174, skillId:5, gradeScore:525,    gachaAvailable:true, criticalRate:0},
-  {id:"s2_dok",  name:"파괴자_독",     tier:"saga",       attackType:"explosive", damage:263,   attackSpeed:2000, range:177, skillId:5, gradeScore:3754,   gachaAvailable:true, criticalRate:0},
-  {id:"l2_dok",  name:"전설 포격_독",  tier:"legend",     attackType:"explosive", damage:381,   attackSpeed:1875, range:189, skillId:5, gradeScore:5438,   gachaAvailable:true, criticalRate:0},
-  {id:"ep2_dok", name:"에픽 파괴_독",  tier:"epic",       attackType:"explosive", damage:972,  attackSpeed:1750, range:190, skillId:5, gradeScore:14242,  gachaAvailable:true, criticalRate:0},
-  {id:"m2_dok",  name:"신화 파괴_독",  tier:"myth",       attackType:"explosive", damage:2012,  attackSpeed:1625, range:193, skillId:5, gradeScore:35477,  gachaAvailable:true, criticalRate:0},
-  {id:"p2_dok",  name:"태초의 파괴_독",tier:"primordial", attackType:"explosive", damage:6494, attackSpeed:1500, range:210, skillId:5, gradeScore:156493, gachaAvailable:true, criticalRate:0},
-  {id:"n3_dok", name:"진동병_독", tier:"normal", attackType:"vibration", damage: 6, attackSpeed:2500, range:150, skillId:5, gradeScore:73, gachaAvailable:true, criticalRate:0},
-  {id:"r3_dok", name:"음파사_독", tier:"rare", attackType:"vibration", damage: 10, attackSpeed:2375, range:152, skillId:5, gradeScore:118, gachaAvailable:true, criticalRate:0},
-  {id:"a3_dok", name:"진동사_독", tier:"ancient", attackType:"vibration", damage: 21, attackSpeed:2250, range:172, skillId:5, gradeScore:261, gachaAvailable:true, criticalRate:0},
-  {id:"e3_dok", name:"공명사_독", tier:"relic", attackType:"vibration", damage: 42, attackSpeed:2125, range:174, skillId:5, gradeScore:525, gachaAvailable:true, criticalRate:0},
-  {id:"s3_dok", name:"공명자_독", tier:"saga", attackType:"vibration", damage:258, attackSpeed:2000, range:177, skillId:5, gradeScore:3754, gachaAvailable:true, criticalRate:0},
-  {id:"l3_dok", name:"전설 음률_독", tier:"legend", attackType:"vibration", damage:372, attackSpeed:1875, range:189, skillId:5, gradeScore:5438, gachaAvailable:true, criticalRate:0},
-  {id:"ep3_dok", name:"에픽 공명_독", tier:"epic", attackType:"vibration", damage:959, attackSpeed:1750, range:190, skillId:5, gradeScore:14242, gachaAvailable:true, criticalRate:0},
-  {id:"m3_dok", name:"신화 진동_독", tier:"myth", attackType:"vibration", damage:1976, attackSpeed:1625, range:193, skillId:5, gradeScore:35477, gachaAvailable:true, criticalRate:0},
-  {id:"p3_dok", name:"태초의 진동_독", tier:"primordial", attackType:"vibration", damage:6380, attackSpeed:1500, range:210, skillId:5, gradeScore:156493, gachaAvailable:true, criticalRate:0},
-  // ── _돈 타워 (27개, damage -20%) ─────────────────────────────────────
-  {id:"n1_don", name:"병사_돈", tier:"normal", attackType:"normal", damage: 36, attackSpeed:700, range:132, skillId:6, gradeScore:126, gachaAvailable:true, criticalRate:500},
-  {id:"r1_don", name:"기사_돈", tier:"rare", attackType:"normal", damage: 50, attackSpeed:630, range:143, skillId:7, gradeScore:190, gachaAvailable:true, criticalRate:500},
-  {id:"a1_don", name:"마법사_돈", tier:"ancient", attackType:"normal", damage: 104, attackSpeed:560, range:160, skillId:8, gradeScore:421, gachaAvailable:true, criticalRate:500},
-  {id:"e1_don", name:"성기사_돈", tier:"relic", attackType:"normal", damage: 178, attackSpeed:504, range:176, skillId:9, gradeScore:841, gachaAvailable:true, criticalRate:500},
-  {id:"s1_don", name:"대마법사_돈", tier:"saga", attackType:"normal", damage:796, attackSpeed:420, range:209, skillId:10, gradeScore:5996, gachaAvailable:true, criticalRate:500},
-  {id:"l1_don", name:"전설 전사_돈", tier:"legend", attackType:"normal", damage:1112, attackSpeed:385, range:210, skillId:11, gradeScore:8695, gachaAvailable:true, criticalRate:500},
-  {id:"ep1_don", name:"에픽 현자_돈", tier:"epic", attackType:"normal", damage:2145, attackSpeed:350, range:264, skillId:12, gradeScore:22168, gachaAvailable:true, criticalRate:500},
-  {id:"m1_don", name:"신화 신관_돈", tier:"myth", attackType:"normal", damage:4878, attackSpeed:350, range:308, skillId:13, gradeScore:56842, gachaAvailable:true, criticalRate:500},
-  {id:"p1_don", name:"태초의 존재_돈", tier:"primordial", attackType:"normal", damage:21226, attackSpeed:350, range:323, skillId:14, gradeScore:250670, gachaAvailable:true, criticalRate:500},
-  {id:"n2_don", name:"폭파병_돈", tier:"normal", attackType:"explosive", damage: 54, attackSpeed:700, range:132, skillId:6, gradeScore:126, gachaAvailable:true, criticalRate:500},
-  {id:"r2_don", name:"포병_돈", tier:"rare", attackType:"explosive", damage: 75, attackSpeed:630, range:143, skillId:7, gradeScore:190, gachaAvailable:true, criticalRate:500},
-  {id:"a2_don", name:"화염포_돈", tier:"ancient", attackType:"explosive", damage: 158, attackSpeed:560, range:160, skillId:8, gradeScore:421, gachaAvailable:true, criticalRate:500},
-  {id:"e2_don", name:"포격사_돈", tier:"relic", attackType:"explosive", damage: 269, attackSpeed:504, range:176, skillId:9, gradeScore:841, gachaAvailable:true, criticalRate:500},
-  {id:"s2_don", name:"파괴자_돈", tier:"saga", attackType:"explosive", damage:1205, attackSpeed:420, range:209, skillId:10, gradeScore:5996, gachaAvailable:true, criticalRate:500},
-  {id:"l2_don", name:"전설 포격_돈", tier:"legend", attackType:"explosive", damage:1684, attackSpeed:385, range:210, skillId:11, gradeScore:8695, gachaAvailable:true, criticalRate:500},
-  {id:"ep2_don", name:"에픽 파괴_돈", tier:"epic", attackType:"explosive", damage:3249, attackSpeed:350, range:264, skillId:12, gradeScore:22168, gachaAvailable:true, criticalRate:500},
-  {id:"m2_don", name:"신화 파괴_돈", tier:"myth", attackType:"explosive", damage:7389, attackSpeed:350, range:308, skillId:13, gradeScore:56842, gachaAvailable:true, criticalRate:500},
-  {id:"p2_don", name:"태초의 파괴_돈", tier:"primordial", attackType:"explosive", damage:32147, attackSpeed:350, range:323, skillId:14, gradeScore:250670, gachaAvailable:true, criticalRate:500},
-  {id:"n3_don",  name:"진동병_돈",     tier:"normal",     attackType:"vibration", damage: 65,    attackSpeed:700,   range:132, skillId:6,  gradeScore:126,    gachaAvailable:true, criticalRate:500},
-  {id:"r3_don",  name:"음파사_돈",     tier:"rare",       attackType:"vibration", damage: 90,    attackSpeed:630,   range:143, skillId:7,  gradeScore:190,    gachaAvailable:true, criticalRate:500},
-  {id:"a3_don",  name:"진동사_돈",     tier:"ancient",    attackType:"vibration", damage: 186,   attackSpeed:560,   range:160, skillId:8,  gradeScore:421,    gachaAvailable:true, criticalRate:500},
-  {id:"e3_don",  name:"공명사_돈",     tier:"relic",      attackType:"vibration", damage: 316,   attackSpeed:504,   range:176, skillId:9,  gradeScore:841,    gachaAvailable:true, criticalRate:500},
-  {id:"s3_don",  name:"공명자_돈",     tier:"saga",       attackType:"vibration", damage:1421,  attackSpeed:420,   range:209, skillId:10, gradeScore:5996,   gachaAvailable:true, criticalRate:500},
-  {id:"l3_don",  name:"전설 음률_돈",  tier:"legend",     attackType:"vibration", damage:1985,  attackSpeed:385,   range:210, skillId:11, gradeScore:8695,   gachaAvailable:true, criticalRate:500},
-  {id:"ep3_don", name:"에픽 공명_돈",  tier:"epic",       attackType:"vibration", damage:3829,  attackSpeed:350,   range:264, skillId:12, gradeScore:22168,  gachaAvailable:true, criticalRate:500},
-  {id:"m3_don",  name:"신화 진동_돈",  tier:"myth",       attackType:"vibration", damage:8712,  attackSpeed:350,   range:308, skillId:13, gradeScore:56842,  gachaAvailable:true, criticalRate:500},
-  {id:"p3_don",  name:"태초의 진동_돈",tier:"primordial", attackType:"vibration", damage:37902, attackSpeed:350,   range:323, skillId:14, gradeScore:250670, gachaAvailable:true, criticalRate:500}
+  {
+    "id": "n1",
+    "name": "병사",
+    "tier": "normal",
+    "attackType": "normal",
+    "damage": 66,
+    "attackSpeed": 1000,
+    "range": 120,
+    "skillId": 1,
+    "gradeScore": 100,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "n2",
+    "name": "폭파병",
+    "tier": "normal",
+    "attackType": "explosive",
+    "damage": 109,
+    "attackSpeed": 1300,
+    "range": 100,
+    "skillId": 3,
+    "gradeScore": 73,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "n3",
+    "name": "진동병",
+    "tier": "normal",
+    "attackType": "vibration",
+    "damage": 95,
+    "attackSpeed": 700,
+    "range": 132,
+    "skillId": 3,
+    "gradeScore": 126,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r1",
+    "name": "기사",
+    "tier": "rare",
+    "attackType": "normal",
+    "damage": 96,
+    "attackSpeed": 900,
+    "range": 130,
+    "skillId": 2,
+    "gradeScore": 152,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r2",
+    "name": "포병",
+    "tier": "rare",
+    "attackType": "explosive",
+    "damage": 158,
+    "attackSpeed": 1170,
+    "range": 110,
+    "skillId": 3,
+    "gradeScore": 118,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r3",
+    "name": "음파사",
+    "tier": "rare",
+    "attackType": "vibration",
+    "damage": 135,
+    "attackSpeed": 630,
+    "range": 143,
+    "skillId": 1,
+    "gradeScore": 190,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a1",
+    "name": "마법사",
+    "tier": "ancient",
+    "attackType": "normal",
+    "damage": 188,
+    "attackSpeed": 800,
+    "range": 145,
+    "skillId": 2,
+    "gradeScore": 334,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a2",
+    "name": "화염포",
+    "tier": "ancient",
+    "attackType": "explosive",
+    "damage": 309,
+    "attackSpeed": 1040,
+    "range": 123,
+    "skillId": 1,
+    "gradeScore": 261,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a3",
+    "name": "진동사",
+    "tier": "ancient",
+    "attackType": "vibration",
+    "damage": 274,
+    "attackSpeed": 560,
+    "range": 160,
+    "skillId": 1,
+    "gradeScore": 421,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e1",
+    "name": "성기사",
+    "tier": "relic",
+    "attackType": "normal",
+    "damage": 276,
+    "attackSpeed": 720,
+    "range": 160,
+    "skillId": 1,
+    "gradeScore": 669,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e2",
+    "name": "포격사",
+    "tier": "relic",
+    "attackType": "explosive",
+    "damage": 454,
+    "attackSpeed": 936,
+    "range": 136,
+    "skillId": 3,
+    "gradeScore": 525,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e3",
+    "name": "공명사",
+    "tier": "relic",
+    "attackType": "vibration",
+    "damage": 401,
+    "attackSpeed": 504,
+    "range": 176,
+    "skillId": 3,
+    "gradeScore": 841,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s1",
+    "name": "대마법사",
+    "tier": "saga",
+    "attackType": "normal",
+    "damage": 1368,
+    "attackSpeed": 600,
+    "range": 190,
+    "skillId": 3,
+    "gradeScore": 4769,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s2",
+    "name": "파괴자",
+    "tier": "saga",
+    "attackType": "explosive",
+    "damage": 2250,
+    "attackSpeed": 780,
+    "range": 162,
+    "skillId": 2,
+    "gradeScore": 3754,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s3",
+    "name": "공명자",
+    "tier": "saga",
+    "attackType": "vibration",
+    "damage": 1961,
+    "attackSpeed": 420,
+    "range": 209,
+    "skillId": 2,
+    "gradeScore": 5996,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l1",
+    "name": "전설 전사",
+    "tier": "legend",
+    "attackType": "normal",
+    "damage": 1635,
+    "attackSpeed": 550,
+    "range": 208,
+    "skillId": 1,
+    "gradeScore": 6913,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l2",
+    "name": "전설 포격",
+    "tier": "legend",
+    "attackType": "explosive",
+    "damage": 2689,
+    "attackSpeed": 715,
+    "range": 177,
+    "skillId": 2,
+    "gradeScore": 5438,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l3",
+    "name": "전설 음률",
+    "tier": "legend",
+    "attackType": "vibration",
+    "damage": 2377,
+    "attackSpeed": 385,
+    "range": 210,
+    "skillId": 2,
+    "gradeScore": 8695,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep1",
+    "name": "에픽 현자",
+    "tier": "epic",
+    "attackType": "normal",
+    "damage": 2894,
+    "attackSpeed": 480,
+    "range": 240,
+    "skillId": 3,
+    "gradeScore": 17629,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep2",
+    "name": "에픽 파괴",
+    "tier": "epic",
+    "attackType": "explosive",
+    "damage": 4760,
+    "attackSpeed": 624,
+    "range": 210,
+    "skillId": 1,
+    "gradeScore": 14242,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep3",
+    "name": "에픽 공명",
+    "tier": "epic",
+    "attackType": "vibration",
+    "damage": 3932,
+    "attackSpeed": 350,
+    "range": 264,
+    "skillId": 2,
+    "gradeScore": 22168,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m1",
+    "name": "신화 신관",
+    "tier": "myth",
+    "attackType": "normal",
+    "damage": 4881,
+    "attackSpeed": 400,
+    "range": 280,
+    "skillId": 3,
+    "gradeScore": 45227,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m2",
+    "name": "신화 파괴",
+    "tier": "myth",
+    "attackType": "explosive",
+    "damage": 8027,
+    "attackSpeed": 520,
+    "range": 238,
+    "skillId": 2,
+    "gradeScore": 35477,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m3",
+    "name": "신화 진동",
+    "tier": "myth",
+    "attackType": "vibration",
+    "damage": 7952,
+    "attackSpeed": 350,
+    "range": 308,
+    "skillId": 1,
+    "gradeScore": 56842,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p1",
+    "name": "태초의 존재",
+    "tier": "primordial",
+    "attackType": "normal",
+    "damage": 14778,
+    "attackSpeed": 350,
+    "range": 323,
+    "skillId": 3,
+    "gradeScore": 199458,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p2",
+    "name": "태초의 파괴",
+    "tier": "primordial",
+    "attackType": "explosive",
+    "damage": 20832,
+    "attackSpeed": 390,
+    "range": 323,
+    "skillId": 2,
+    "gradeScore": 156493,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p3",
+    "name": "태초의 진동",
+    "tier": "primordial",
+    "attackType": "vibration",
+    "damage": 30267,
+    "attackSpeed": 350,
+    "range": 323,
+    "skillId": 3,
+    "gradeScore": 250670,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "n1_yeon",
+    "name": "병사_연",
+    "tier": "normal",
+    "attackType": "normal",
+    "damage": 31,
+    "attackSpeed": 1400,
+    "range": 120,
+    "skillId": 4,
+    "gradeScore": 100,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r1_yeon",
+    "name": "기사_연",
+    "tier": "rare",
+    "attackType": "normal",
+    "damage": 45,
+    "attackSpeed": 1260,
+    "range": 130,
+    "skillId": 4,
+    "gradeScore": 152,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a1_yeon",
+    "name": "마법사_연",
+    "tier": "ancient",
+    "attackType": "normal",
+    "damage": 89,
+    "attackSpeed": 1120,
+    "range": 145,
+    "skillId": 4,
+    "gradeScore": 334,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e1_yeon",
+    "name": "성기사_연",
+    "tier": "relic",
+    "attackType": "normal",
+    "damage": 130,
+    "attackSpeed": 1008,
+    "range": 160,
+    "skillId": 4,
+    "gradeScore": 669,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s1_yeon",
+    "name": "대마법사_연",
+    "tier": "saga",
+    "attackType": "normal",
+    "damage": 646,
+    "attackSpeed": 840,
+    "range": 190,
+    "skillId": 4,
+    "gradeScore": 4769,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l1_yeon",
+    "name": "전설 전사_연",
+    "tier": "legend",
+    "attackType": "normal",
+    "damage": 772,
+    "attackSpeed": 770,
+    "range": 208,
+    "skillId": 4,
+    "gradeScore": 6913,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep1_yeon",
+    "name": "에픽 현자_연",
+    "tier": "epic",
+    "attackType": "normal",
+    "damage": 1366,
+    "attackSpeed": 672,
+    "range": 240,
+    "skillId": 4,
+    "gradeScore": 17629,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m1_yeon",
+    "name": "신화 신관_연",
+    "tier": "myth",
+    "attackType": "normal",
+    "damage": 2303,
+    "attackSpeed": 560,
+    "range": 280,
+    "skillId": 4,
+    "gradeScore": 45227,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p1_yeon",
+    "name": "태초의 존재_연",
+    "tier": "primordial",
+    "attackType": "normal",
+    "damage": 5977,
+    "attackSpeed": 420,
+    "range": 323,
+    "skillId": 4,
+    "gradeScore": 199458,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "n2_yeon",
+    "name": "폭파병_연",
+    "tier": "normal",
+    "attackType": "explosive",
+    "damage": 40,
+    "attackSpeed": 1400,
+    "range": 120,
+    "skillId": 4,
+    "gradeScore": 100,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r2_yeon",
+    "name": "포병_연",
+    "tier": "rare",
+    "attackType": "explosive",
+    "damage": 57,
+    "attackSpeed": 1260,
+    "range": 130,
+    "skillId": 4,
+    "gradeScore": 152,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a2_yeon",
+    "name": "화염포_연",
+    "tier": "ancient",
+    "attackType": "explosive",
+    "damage": 112,
+    "attackSpeed": 1120,
+    "range": 145,
+    "skillId": 4,
+    "gradeScore": 334,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e2_yeon",
+    "name": "포격사_연",
+    "tier": "relic",
+    "attackType": "explosive",
+    "damage": 165,
+    "attackSpeed": 1008,
+    "range": 160,
+    "skillId": 4,
+    "gradeScore": 669,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s2_yeon",
+    "name": "파괴자_연",
+    "tier": "saga",
+    "attackType": "explosive",
+    "damage": 817,
+    "attackSpeed": 840,
+    "range": 190,
+    "skillId": 4,
+    "gradeScore": 4769,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l2_yeon",
+    "name": "전설 포격_연",
+    "tier": "legend",
+    "attackType": "explosive",
+    "damage": 976,
+    "attackSpeed": 770,
+    "range": 208,
+    "skillId": 4,
+    "gradeScore": 6913,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep2_yeon",
+    "name": "에픽 파괴_연",
+    "tier": "epic",
+    "attackType": "explosive",
+    "damage": 1728,
+    "attackSpeed": 672,
+    "range": 240,
+    "skillId": 4,
+    "gradeScore": 17629,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m2_yeon",
+    "name": "신화 파괴_연",
+    "tier": "myth",
+    "attackType": "explosive",
+    "damage": 2914,
+    "attackSpeed": 560,
+    "range": 280,
+    "skillId": 4,
+    "gradeScore": 45227,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p2_yeon",
+    "name": "태초의 파괴_연",
+    "tier": "primordial",
+    "attackType": "explosive",
+    "damage": 7562,
+    "attackSpeed": 420,
+    "range": 323,
+    "skillId": 4,
+    "gradeScore": 199458,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "n3_yeon",
+    "name": "진동병_연",
+    "tier": "normal",
+    "attackType": "vibration",
+    "damage": 64,
+    "attackSpeed": 1400,
+    "range": 120,
+    "skillId": 4,
+    "gradeScore": 100,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r3_yeon",
+    "name": "음파사_연",
+    "tier": "rare",
+    "attackType": "vibration",
+    "damage": 91,
+    "attackSpeed": 1260,
+    "range": 130,
+    "skillId": 4,
+    "gradeScore": 152,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a3_yeon",
+    "name": "진동사_연",
+    "tier": "ancient",
+    "attackType": "vibration",
+    "damage": 185,
+    "attackSpeed": 1120,
+    "range": 145,
+    "skillId": 4,
+    "gradeScore": 334,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e3_yeon",
+    "name": "공명사_연",
+    "tier": "relic",
+    "attackType": "vibration",
+    "damage": 270,
+    "attackSpeed": 1008,
+    "range": 160,
+    "skillId": 4,
+    "gradeScore": 669,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s3_yeon",
+    "name": "공명자_연",
+    "tier": "saga",
+    "attackType": "vibration",
+    "damage": 1322,
+    "attackSpeed": 840,
+    "range": 190,
+    "skillId": 4,
+    "gradeScore": 4769,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l3_yeon",
+    "name": "전설 음률_연",
+    "tier": "legend",
+    "attackType": "vibration",
+    "damage": 1602,
+    "attackSpeed": 770,
+    "range": 208,
+    "skillId": 4,
+    "gradeScore": 6913,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep3_yeon",
+    "name": "에픽 공명_연",
+    "tier": "epic",
+    "attackType": "vibration",
+    "damage": 2545,
+    "attackSpeed": 672,
+    "range": 240,
+    "skillId": 4,
+    "gradeScore": 17629,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m3_yeon",
+    "name": "신화 진동_연",
+    "tier": "myth",
+    "attackType": "vibration",
+    "damage": 4288,
+    "attackSpeed": 560,
+    "range": 280,
+    "skillId": 4,
+    "gradeScore": 45227,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p3_yeon",
+    "name": "태초의 진동_연",
+    "tier": "primordial",
+    "attackType": "vibration",
+    "damage": 12242,
+    "attackSpeed": 420,
+    "range": 323,
+    "skillId": 4,
+    "gradeScore": 199458,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "n2_dok",
+    "name": "폭파병_독",
+    "tier": "normal",
+    "attackType": "explosive",
+    "damage": 10,
+    "attackSpeed": 2500,
+    "range": 150,
+    "skillId": 5,
+    "gradeScore": 73,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "r2_dok",
+    "name": "포병_독",
+    "tier": "rare",
+    "attackType": "explosive",
+    "damage": 17,
+    "attackSpeed": 2375,
+    "range": 152,
+    "skillId": 5,
+    "gradeScore": 118,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "a2_dok",
+    "name": "화염포_독",
+    "tier": "ancient",
+    "attackType": "explosive",
+    "damage": 38,
+    "attackSpeed": 2250,
+    "range": 172,
+    "skillId": 5,
+    "gradeScore": 261,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "e2_dok",
+    "name": "포격사_독",
+    "tier": "relic",
+    "attackType": "explosive",
+    "damage": 63,
+    "attackSpeed": 2125,
+    "range": 174,
+    "skillId": 5,
+    "gradeScore": 525,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "s2_dok",
+    "name": "파괴자_독",
+    "tier": "saga",
+    "attackType": "explosive",
+    "damage": 375,
+    "attackSpeed": 2000,
+    "range": 177,
+    "skillId": 5,
+    "gradeScore": 3754,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "l2_dok",
+    "name": "전설 포격_독",
+    "tier": "legend",
+    "attackType": "explosive",
+    "damage": 485,
+    "attackSpeed": 1875,
+    "range": 189,
+    "skillId": 5,
+    "gradeScore": 5438,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "ep2_dok",
+    "name": "에픽 파괴_독",
+    "tier": "epic",
+    "attackType": "explosive",
+    "damage": 968,
+    "attackSpeed": 1750,
+    "range": 190,
+    "skillId": 5,
+    "gradeScore": 14242,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "m2_dok",
+    "name": "신화 파괴_독",
+    "tier": "myth",
+    "attackType": "explosive",
+    "damage": 1913,
+    "attackSpeed": 1625,
+    "range": 193,
+    "skillId": 5,
+    "gradeScore": 35477,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "p2_dok",
+    "name": "태초의 파괴_독",
+    "tier": "primordial",
+    "attackType": "explosive",
+    "damage": 6410,
+    "attackSpeed": 1500,
+    "range": 210,
+    "skillId": 5,
+    "gradeScore": 156493,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "n1_dok",
+    "name": "병사_독",
+    "tier": "normal",
+    "attackType": "normal",
+    "damage": 8,
+    "attackSpeed": 2500,
+    "range": 150,
+    "skillId": 5,
+    "gradeScore": 73,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "r1_dok",
+    "name": "기사_독",
+    "tier": "rare",
+    "attackType": "normal",
+    "damage": 14,
+    "attackSpeed": 2375,
+    "range": 152,
+    "skillId": 5,
+    "gradeScore": 118,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "a1_dok",
+    "name": "마법사_독",
+    "tier": "ancient",
+    "attackType": "normal",
+    "damage": 30,
+    "attackSpeed": 2250,
+    "range": 172,
+    "skillId": 5,
+    "gradeScore": 261,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "e1_dok",
+    "name": "성기사_독",
+    "tier": "relic",
+    "attackType": "normal",
+    "damage": 50,
+    "attackSpeed": 2125,
+    "range": 174,
+    "skillId": 5,
+    "gradeScore": 525,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "s1_dok",
+    "name": "대마법사_독",
+    "tier": "saga",
+    "attackType": "normal",
+    "damage": 296,
+    "attackSpeed": 2000,
+    "range": 177,
+    "skillId": 5,
+    "gradeScore": 3754,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "l1_dok",
+    "name": "전설 전사_독",
+    "tier": "legend",
+    "attackType": "normal",
+    "damage": 383,
+    "attackSpeed": 1875,
+    "range": 189,
+    "skillId": 5,
+    "gradeScore": 5438,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "ep1_dok",
+    "name": "에픽 현자_독",
+    "tier": "epic",
+    "attackType": "normal",
+    "damage": 765,
+    "attackSpeed": 1750,
+    "range": 190,
+    "skillId": 5,
+    "gradeScore": 14242,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "m1_dok",
+    "name": "신화 신관_독",
+    "tier": "myth",
+    "attackType": "normal",
+    "damage": 1512,
+    "attackSpeed": 1625,
+    "range": 193,
+    "skillId": 5,
+    "gradeScore": 35477,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "p1_dok",
+    "name": "태초의 존재_독",
+    "tier": "primordial",
+    "attackType": "normal",
+    "damage": 5067,
+    "attackSpeed": 1500,
+    "range": 210,
+    "skillId": 5,
+    "gradeScore": 156493,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "n3_dok",
+    "name": "진동병_독",
+    "tier": "normal",
+    "attackType": "vibration",
+    "damage": 17,
+    "attackSpeed": 2500,
+    "range": 150,
+    "skillId": 5,
+    "gradeScore": 73,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "r3_dok",
+    "name": "음파사_독",
+    "tier": "rare",
+    "attackType": "vibration",
+    "damage": 27,
+    "attackSpeed": 2375,
+    "range": 152,
+    "skillId": 5,
+    "gradeScore": 118,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "a3_dok",
+    "name": "진동사_독",
+    "tier": "ancient",
+    "attackType": "vibration",
+    "damage": 63,
+    "attackSpeed": 2250,
+    "range": 172,
+    "skillId": 5,
+    "gradeScore": 261,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "e3_dok",
+    "name": "공명사_독",
+    "tier": "relic",
+    "attackType": "vibration",
+    "damage": 104,
+    "attackSpeed": 2125,
+    "range": 174,
+    "skillId": 5,
+    "gradeScore": 525,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "s3_dok",
+    "name": "공명자_독",
+    "tier": "saga",
+    "attackType": "vibration",
+    "damage": 607,
+    "attackSpeed": 2000,
+    "range": 177,
+    "skillId": 5,
+    "gradeScore": 3754,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "l3_dok",
+    "name": "전설 음률_독",
+    "tier": "legend",
+    "attackType": "vibration",
+    "damage": 796,
+    "attackSpeed": 1875,
+    "range": 189,
+    "skillId": 5,
+    "gradeScore": 5438,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "ep3_dok",
+    "name": "에픽 공명_독",
+    "tier": "epic",
+    "attackType": "vibration",
+    "damage": 1425,
+    "attackSpeed": 1750,
+    "range": 190,
+    "skillId": 5,
+    "gradeScore": 14242,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "m3_dok",
+    "name": "신화 진동_독",
+    "tier": "myth",
+    "attackType": "vibration",
+    "damage": 2815,
+    "attackSpeed": 1625,
+    "range": 193,
+    "skillId": 5,
+    "gradeScore": 35477,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "p3_dok",
+    "name": "태초의 진동_독",
+    "tier": "primordial",
+    "attackType": "vibration",
+    "damage": 10377,
+    "attackSpeed": 1500,
+    "range": 210,
+    "skillId": 5,
+    "gradeScore": 156493,
+    "gachaAvailable": true,
+    "criticalRate": 0
+  },
+  {
+    "id": "n3_don",
+    "name": "진동병_돈",
+    "tier": "normal",
+    "attackType": "vibration",
+    "damage": 76,
+    "attackSpeed": 700,
+    "range": 132,
+    "skillId": 6,
+    "gradeScore": 126,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r3_don",
+    "name": "음파사_돈",
+    "tier": "rare",
+    "attackType": "vibration",
+    "damage": 122,
+    "attackSpeed": 630,
+    "range": 143,
+    "skillId": 7,
+    "gradeScore": 190,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a3_don",
+    "name": "진동사_돈",
+    "tier": "ancient",
+    "attackType": "vibration",
+    "damage": 249,
+    "attackSpeed": 560,
+    "range": 160,
+    "skillId": 8,
+    "gradeScore": 421,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e3_don",
+    "name": "공명사_돈",
+    "tier": "relic",
+    "attackType": "vibration",
+    "damage": 369,
+    "attackSpeed": 504,
+    "range": 176,
+    "skillId": 9,
+    "gradeScore": 841,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s3_don",
+    "name": "공명자_돈",
+    "tier": "saga",
+    "attackType": "vibration",
+    "damage": 1824,
+    "attackSpeed": 420,
+    "range": 209,
+    "skillId": 10,
+    "gradeScore": 5996,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l3_don",
+    "name": "전설 음률_돈",
+    "tier": "legend",
+    "attackType": "vibration",
+    "damage": 2234,
+    "attackSpeed": 385,
+    "range": 210,
+    "skillId": 11,
+    "gradeScore": 8695,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep3_don",
+    "name": "에픽 공명_돈",
+    "tier": "epic",
+    "attackType": "vibration",
+    "damage": 3735,
+    "attackSpeed": 350,
+    "range": 264,
+    "skillId": 12,
+    "gradeScore": 22168,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m3_don",
+    "name": "신화 진동_돈",
+    "tier": "myth",
+    "attackType": "vibration",
+    "damage": 7634,
+    "attackSpeed": 350,
+    "range": 308,
+    "skillId": 13,
+    "gradeScore": 56842,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p3_don",
+    "name": "태초의 진동_돈",
+    "tier": "primordial",
+    "attackType": "vibration",
+    "damage": 29359,
+    "attackSpeed": 350,
+    "range": 323,
+    "skillId": 14,
+    "gradeScore": 250670,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "n1_don",
+    "name": "병사_돈",
+    "tier": "normal",
+    "attackType": "normal",
+    "damage": 53,
+    "attackSpeed": 1000,
+    "range": 120,
+    "skillId": 6,
+    "gradeScore": 126,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r1_don",
+    "name": "기사_돈",
+    "tier": "rare",
+    "attackType": "normal",
+    "damage": 86,
+    "attackSpeed": 900,
+    "range": 130,
+    "skillId": 7,
+    "gradeScore": 190,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a1_don",
+    "name": "마법사_돈",
+    "tier": "ancient",
+    "attackType": "normal",
+    "damage": 171,
+    "attackSpeed": 800,
+    "range": 145,
+    "skillId": 8,
+    "gradeScore": 421,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e1_don",
+    "name": "성기사_돈",
+    "tier": "relic",
+    "attackType": "normal",
+    "damage": 254,
+    "attackSpeed": 720,
+    "range": 160,
+    "skillId": 9,
+    "gradeScore": 841,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s1_don",
+    "name": "대마법사_돈",
+    "tier": "saga",
+    "attackType": "normal",
+    "damage": 1272,
+    "attackSpeed": 600,
+    "range": 190,
+    "skillId": 10,
+    "gradeScore": 5996,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l1_don",
+    "name": "전설 전사_돈",
+    "tier": "legend",
+    "attackType": "normal",
+    "damage": 1537,
+    "attackSpeed": 550,
+    "range": 208,
+    "skillId": 11,
+    "gradeScore": 8695,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep1_don",
+    "name": "에픽 현자_돈",
+    "tier": "epic",
+    "attackType": "normal",
+    "damage": 2749,
+    "attackSpeed": 480,
+    "range": 240,
+    "skillId": 12,
+    "gradeScore": 22168,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m1_don",
+    "name": "신화 신관_돈",
+    "tier": "myth",
+    "attackType": "normal",
+    "damage": 4686,
+    "attackSpeed": 400,
+    "range": 280,
+    "skillId": 13,
+    "gradeScore": 56842,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p1_don",
+    "name": "태초의 존재_돈",
+    "tier": "primordial",
+    "attackType": "normal",
+    "damage": 14335,
+    "attackSpeed": 350,
+    "range": 323,
+    "skillId": 14,
+    "gradeScore": 250670,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "n2_don",
+    "name": "폭파병_돈",
+    "tier": "normal",
+    "attackType": "explosive",
+    "damage": 87,
+    "attackSpeed": 1300,
+    "range": 100,
+    "skillId": 6,
+    "gradeScore": 126,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "r2_don",
+    "name": "포병_돈",
+    "tier": "rare",
+    "attackType": "explosive",
+    "damage": 142,
+    "attackSpeed": 1170,
+    "range": 110,
+    "skillId": 7,
+    "gradeScore": 190,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "a2_don",
+    "name": "화염포_돈",
+    "tier": "ancient",
+    "attackType": "explosive",
+    "damage": 281,
+    "attackSpeed": 1040,
+    "range": 123,
+    "skillId": 8,
+    "gradeScore": 421,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "e2_don",
+    "name": "포격사_돈",
+    "tier": "relic",
+    "attackType": "explosive",
+    "damage": 418,
+    "attackSpeed": 936,
+    "range": 136,
+    "skillId": 9,
+    "gradeScore": 841,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "s2_don",
+    "name": "파괴자_돈",
+    "tier": "saga",
+    "attackType": "explosive",
+    "damage": 2093,
+    "attackSpeed": 780,
+    "range": 162,
+    "skillId": 10,
+    "gradeScore": 5996,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "l2_don",
+    "name": "전설 포격_돈",
+    "tier": "legend",
+    "attackType": "explosive",
+    "damage": 2528,
+    "attackSpeed": 715,
+    "range": 177,
+    "skillId": 11,
+    "gradeScore": 8695,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "ep2_don",
+    "name": "에픽 파괴_돈",
+    "tier": "epic",
+    "attackType": "explosive",
+    "damage": 4522,
+    "attackSpeed": 624,
+    "range": 210,
+    "skillId": 12,
+    "gradeScore": 22168,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "m2_don",
+    "name": "신화 파괴_돈",
+    "tier": "myth",
+    "attackType": "explosive",
+    "damage": 7706,
+    "attackSpeed": 520,
+    "range": 238,
+    "skillId": 13,
+    "gradeScore": 56842,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  },
+  {
+    "id": "p2_don",
+    "name": "태초의 파괴_돈",
+    "tier": "primordial",
+    "attackType": "explosive",
+    "damage": 20207,
+    "attackSpeed": 390,
+    "range": 323,
+    "skillId": 14,
+    "gradeScore": 250670,
+    "gachaAvailable": true,
+    "criticalRate": 500
+  }
 ];
 
 
 
 
 const DEFAULT_SKILLS = {
-
-  "1":{id:1,name:"느린 사격",nameEn:"BASE_SHOT", category:"instant",desc:"느린 속도의 투사체를 발사한다.",projectileSpeed:3,displaySize:32,fallbackShape:"circle_large",imagePath:"assets/Art/projectiles/proj_basic_slow_01_01.png"},
-  "2":{id:2,name:"일반 사격",nameEn:"BASE_SHOT", category:"instant",desc:"보통 속도의 투사체를 발사한다.",projectileSpeed:5,displaySize:32,fallbackShape:"circle",imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png"},
-  "3":{id:3,name:"빠른 사격",nameEn:"BASE_SHOT", category:"instant",desc:"빠른 속도의 투사체를 발사한다.",projectileSpeed:7,displaySize:32,fallbackShape:"diamond",imagePath:"assets/Art/projectiles/proj_basic_fast_01_01.png"},
-  "4":{id:4,name:"연쇄 번개",nameEn:"CHAIN_ATTACK", category:"instant",desc:"적을 관통하며 연쇄적으로 튕기는 번개 투사체를 발사한다.",projectileSpeed:4,displaySize:32,fallbackShape:"lightning",fallbackColor:"0x00CCFF",imagePath:"assets/Art/projectiles/proj_chainLightning_01.png",bounceCount:5,bounceRange:0,bounceDamageMultiplier:0.85},
-  "5":{id:5, name:"맹독 중첩", nameEn:"POISON_DOT", category:"duration", desc:"투사체 적중 시 독을 중첩하여 지속 피해를 준다.", projectileSpeed:5, displaySize:32, fallbackShape:"diamond", fallbackColor:"0x00FF00", imagePath:"assets/Art/projectiles/proj_poison_01.png", poisonDuration:15000, maxPoisonStacks:20, tickRate:1000, poisonDamageRatio:1.0},
-  "6" :{id:6,  name:"앵벌이_일반", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:150, goldReward:18, goldRewardDelta:-20},
-  "7" :{id:7,  name:"앵벌이_레어", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:135, goldReward:20, goldRewardDelta:-19},
-  "8" :{id:8,  name:"앵벌이_고대", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:122, goldReward:24, goldRewardDelta:-18},
-  "9" :{id:9,  name:"앵벌이_유물", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:109, goldReward:28, goldRewardDelta:-17},
-  "10":{id:10, name:"앵벌이_서사", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:98,  goldReward:31, goldRewardDelta:-16},
-  "11":{id:11, name:"앵벌이_전설", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:89,  goldReward:36, goldRewardDelta:-15},
-  "12":{id:12, name:"앵벌이_에픽", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:80,  goldReward:41, goldRewardDelta:-14},
-  "13":{id:13, name:"앵벌이_신화", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:72,  goldReward:48, goldRewardDelta:-13},
-  "14":{id:14, name:"앵벌이_태초", nameEn:"GOLD_FARM", category:"instant", desc:"공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.", projectileSpeed:4, displaySize:32, fallbackShape:"circle", fallbackColor:"0xFFD700", imagePath:"assets/Art/projectiles/proj_basic_normal_01_01.png", attacksToReward:65,  goldReward:55, goldRewardDelta:-12}
+  "1": {
+    "id": 1,
+    "name": "느린 사격",
+    "nameEn": "BASE_SHOT",
+    "category": "instant",
+    "desc": "느린 속도의 투사체를 발사한다.",
+    "projectileSpeed": 3,
+    "displaySize": 32,
+    "fallbackShape": "circle_large",
+    "imagePath": "assets/Art/projectiles/proj_basic_slow_01_01.png"
+  },
+  "2": {
+    "id": 2,
+    "name": "일반 사격",
+    "nameEn": "BASE_SHOT",
+    "category": "instant",
+    "desc": "보통 속도의 투사체를 발사한다.",
+    "projectileSpeed": 5,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png"
+  },
+  "3": {
+    "id": 3,
+    "name": "빠른 사격",
+    "nameEn": "BASE_SHOT",
+    "category": "instant",
+    "desc": "빠른 속도의 투사체를 발사한다.",
+    "projectileSpeed": 7,
+    "displaySize": 32,
+    "fallbackShape": "diamond",
+    "imagePath": "assets/Art/projectiles/proj_basic_fast_01_01.png"
+  },
+  "4": {
+    "id": 4,
+    "name": "연쇄 번개",
+    "nameEn": "CHAIN_ATTACK",
+    "category": "instant",
+    "desc": "적을 관통하며 연쇄적으로 튕기는 번개 투사체를 발사한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "lightning",
+    "fallbackColor": "0x00CCFF",
+    "imagePath": "assets/Art/projectiles/proj_chainLightning_01.png",
+    "bounceCount": 5,
+    "bounceRange": 0,
+    "bounceDamageMultiplier": 0.85
+  },
+  "5": {
+    "id": 5,
+    "name": "맹독 중첩",
+    "nameEn": "POISON_DOT",
+    "category": "duration",
+    "desc": "투사체 적중 시 독을 중첩하여 지속 피해를 준다.",
+    "projectileSpeed": 5,
+    "displaySize": 32,
+    "fallbackShape": "diamond",
+    "fallbackColor": "0x00FF00",
+    "imagePath": "assets/Art/projectiles/proj_poison_01.png",
+    "poisonDuration": 15000,
+    "maxPoisonStacks": 20,
+    "tickRate": 1000,
+    "poisonDamageRatio": 1
+  },
+  "6": {
+    "id": 6,
+    "name": "앵벌이_일반",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 150,
+    "goldReward": 18,
+    "goldRewardDelta": -20
+  },
+  "7": {
+    "id": 7,
+    "name": "앵벌이_레어",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 139,
+    "goldReward": 21,
+    "goldRewardDelta": -19
+  },
+  "8": {
+    "id": 8,
+    "name": "앵벌이_고대",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 129,
+    "goldReward": 28,
+    "goldRewardDelta": -18
+  },
+  "9": {
+    "id": 9,
+    "name": "앵벌이_유물",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 119,
+    "goldReward": 34,
+    "goldRewardDelta": -17
+  },
+  "10": {
+    "id": 10,
+    "name": "앵벌이_서사",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 110,
+    "goldReward": 41,
+    "goldRewardDelta": -16
+  },
+  "11": {
+    "id": 11,
+    "name": "앵벌이_전설",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 102,
+    "goldReward": 49,
+    "goldRewardDelta": -15
+  },
+  "12": {
+    "id": 12,
+    "name": "앵벌이_에픽",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 96,
+    "goldReward": 60,
+    "goldRewardDelta": -14
+  },
+  "13": {
+    "id": 13,
+    "name": "앵벌이_신화",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 90,
+    "goldReward": 77,
+    "goldRewardDelta": -13
+  },
+  "14": {
+    "id": 14,
+    "name": "앵벌이_태초",
+    "nameEn": "GOLD_FARM",
+    "category": "instant",
+    "desc": "공격할 때마다 카운터가 증가하며, 설정된 횟수에 도달하면 골드를 획득한다.",
+    "projectileSpeed": 4,
+    "displaySize": 32,
+    "fallbackShape": "circle",
+    "fallbackColor": "0xFFD700",
+    "imagePath": "assets/Art/projectiles/proj_basic_normal_01_01.png",
+    "attacksToReward": 84,
+    "goldReward": 96,
+    "goldRewardDelta": -12
+  }
 };
 
 const DEFAULT_MONSTERS = [
-  {id:1,name:"몬스터 1R",type:"small",hp:1733,speed:0.9,goldReward:24,isBoss:false,imagePath:""},
-  {id:2,name:"몬스터 2R",type:"small",hp:1856,speed:1.83,goldReward:50,isBoss:false,imagePath:""},
-  {id:3,name:"몬스터 3R",type:"large",hp:1975,speed:1.22,goldReward:58,isBoss:false,imagePath:""},
-  {id:4,name:"몬스터 4R",type:"general",hp:2098,speed:1.83,goldReward:67,isBoss:false,imagePath:""},
-  {id:5,name:"몬스터 5R",type:"small",hp:2219,speed:1.07,goldReward:77,isBoss:false,imagePath:""},
-  {id:6,name:"몬스터 6R",type:"large",hp:2342,speed:0.9,goldReward:86,isBoss:false,imagePath:""},
-  {id:7,name:"몬스터 7R",type:"general",hp:2462,speed:0.9,goldReward:95,isBoss:false,imagePath:""},
-  {id:8,name:"보스 8R",type:"boss_small",hp:22151,speed:1.08,goldReward:245,isBoss:true,imagePath:""},
-  {id:9,name:"몬스터 9R",type:"small",hp:2584,speed:1.19,goldReward:114,isBoss:false,imagePath:""},
-  {id:10,name:"몬스터 10R",type:"large",hp:2705,speed:0.9,goldReward:123,isBoss:false,imagePath:""},
-  {id:11,name:"몬스터 11R",type:"general",hp:2762,speed:0.9,goldReward:132,isBoss:false,imagePath:""},
-  {id:12,name:"몬스터 12R",type:"small",hp:2819,speed:1.31,goldReward:141,isBoss:false,imagePath:""},
-  {id:13,name:"몬스터 13R",type:"large",hp:2876,speed:0.9,goldReward:150,isBoss:false,imagePath:""},
-  {id:14,name:"몬스터 14R",type:"general",hp:2933,speed:1.07,goldReward:160,isBoss:false,imagePath:""},
-  {id:15,name:"몬스터 15R",type:"small",hp:2990,speed:1.31,goldReward:169,isBoss:false,imagePath:""},
-  {id:16,name:"보스 16R",type:"boss_normal",hp:51675,speed:0.92,goldReward:458,isBoss:true,imagePath:""},
-  {id:17,name:"몬스터 17R",type:"large",hp:3105,speed:0.99,goldReward:187,isBoss:false,imagePath:""},
-  {id:18,name:"몬스터 18R",type:"small",hp:3162,speed:1.39,goldReward:197,isBoss:false,imagePath:""},
-  {id:19,name:"몬스터 19R",type:"general",hp:3219,speed:1.11,goldReward:206,isBoss:false,imagePath:""},
-  {id:20,name:"몬스터 20R",type:"large",hp:3276,speed:0.99,goldReward:214,isBoss:false,imagePath:""},
-  {id:21,name:"몬스터 21R",type:"small",hp:3333,speed:1.39,goldReward:224,isBoss:false,imagePath:""},
-  {id:22,name:"몬스터 22R",type:"general",hp:3435,speed:1.11,goldReward:234,isBoss:false,imagePath:""},
-  {id:23,name:"몬스터 23R",type:"large",hp:3539,speed:0.99,goldReward:242,isBoss:false,imagePath:""},
-  {id:24,name:"보스 24R",type:"boss_normal",hp:69021,speed:0.72,goldReward:736,isBoss:true,imagePath:""},
-  {id:25,name:"몬스터 25R",type:"small",hp:3643,speed:1.54,goldReward:261,isBoss:false,imagePath:""},
-  {id:26,name:"몬스터 26R",type:"large",hp:3745,speed:0.99,goldReward:270,isBoss:false,imagePath:""},
-  {id:27,name:"몬스터 27R",type:"general",hp:3850,speed:1.27,goldReward:279,isBoss:false,imagePath:""},
-  {id:28,name:"몬스터 28R",type:"small",hp:3952,speed:1.66,goldReward:288,isBoss:false,imagePath:""},
-  {id:29,name:"몬스터 29R",type:"general",hp:4056,speed:1.11,goldReward:298,isBoss:false,imagePath:""},
-  {id:30,name:"몬스터 30R",type:"large",hp:4158,speed:0.99,goldReward:307,isBoss:false,imagePath:""},
-  {id:31,name:"몬스터 31R",type:"general",hp:4262,speed:1.12,goldReward:316,isBoss:false,imagePath:""},
-  {id:32,name:"보스 32R",type:"boss_large",hp:94119,speed:0.81,goldReward:1065,isBoss:true,imagePath:""},
-  {id:33,name:"몬스터 33R",type:"small",hp:4366,speed:1.63,goldReward:334,isBoss:false,imagePath:""},
-  {id:34,name:"몬스터 34R",type:"general",hp:4468,speed:1.12,goldReward:344,isBoss:false,imagePath:""},
-  {id:35,name:"몬스터 35R",type:"large",hp:4572,speed:1.08,goldReward:353,isBoss:false,imagePath:""},
-  {id:36,name:"몬스터 36R",type:"general",hp:4676,speed:1.27,goldReward:362,isBoss:false,imagePath:""},
-  {id:37,name:"몬스터 37R",type:"large",hp:4780,speed:1.08,goldReward:371,isBoss:false,imagePath:""},
-  {id:38,name:"몬스터 38R",type:"small",hp:4882,speed:1.78,goldReward:381,isBoss:false,imagePath:""},
-  {id:39,name:"몬스터 39R",type:"general",hp:4985,speed:1.27,goldReward:390,isBoss:false,imagePath:""},
-  {id:40,name:"보스 40R",type:"boss_normal",hp:119214,speed:0.92,goldReward:1441,isBoss:true,imagePath:""},
-  {id:41,name:"몬스터 41R",type:"large",hp:5089,speed:1.08,goldReward:408,isBoss:false,imagePath:""},
-  {id:42,name:"몬스터 42R",type:"general",hp:5193,speed:1.42,goldReward:418,isBoss:false,imagePath:""},
-  {id:43,name:"몬스터 43R",type:"small",hp:5295,speed:1.93,goldReward:426,isBoss:false,imagePath:""},
-  {id:44,name:"몬스터 44R",type:"general",hp:5398,speed:1.37,goldReward:435,isBoss:false,imagePath:""},
-  {id:45,name:"몬스터 45R",type:"large",hp:5502,speed:1.08,goldReward:445,isBoss:false,imagePath:""},
-  {id:46,name:"몬스터 46R",type:"general",hp:5606,speed:1.52,goldReward:454,isBoss:false,imagePath:""},
-  {id:47,name:"몬스터 47R",type:"large",hp:5708,speed:1.08,goldReward:463,isBoss:false,imagePath:""},
-  {id:48,name:"보스 48R",type:"boss_small",hp:144310,speed:0.99,goldReward:2051,isBoss:true,imagePath:""},
-  {id:49,name:"몬스터 49R",type:"general",hp:5811,speed:1.4,goldReward:482,isBoss:false,imagePath:""},
-  {id:50,name:"보스 50R",type:"boss_large",hp:169406,speed:1.08,goldReward:4075,isBoss:true,imagePath:""}
+  {
+    "id": 1,
+    "name": "몬스터 1R",
+    "type": "small",
+    "hp": 1297,
+    "speed": 0.72,
+    "goldReward": 3.1,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 2,
+    "name": "몬스터 2R",
+    "type": "large",
+    "hp": 1344,
+    "speed": 1.21,
+    "goldReward": 3.2,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 3,
+    "name": "몬스터 3R",
+    "type": "general",
+    "hp": 1393,
+    "speed": 0.89,
+    "goldReward": 3.2,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 4,
+    "name": "몬스터 4R",
+    "type": "small",
+    "hp": 1377,
+    "speed": 1.21,
+    "goldReward": 3.3,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 5,
+    "name": "몬스터 5R",
+    "type": "large",
+    "hp": 1389,
+    "speed": 0.81,
+    "goldReward": 3.6,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 6,
+    "name": "몬스터 6R",
+    "type": "general",
+    "hp": 1494,
+    "speed": 0.72,
+    "goldReward": 3.7,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 7,
+    "name": "몬스터 7R",
+    "type": "small",
+    "hp": 1536,
+    "speed": 0.72,
+    "goldReward": 3.8,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 8,
+    "name": "보스 8R",
+    "type": "boss_small",
+    "hp": 12023,
+    "speed": 0.91,
+    "goldReward": 312.6,
+    "isBoss": true,
+    "imagePath": ""
+  },
+  {
+    "id": 9,
+    "name": "몬스터 9R",
+    "type": "large",
+    "hp": 3354,
+    "speed": 0.87,
+    "goldReward": 4,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 10,
+    "name": "몬스터 10R",
+    "type": "general",
+    "hp": 3985,
+    "speed": 0.72,
+    "goldReward": 4.1,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 11,
+    "name": "몬스터 11R",
+    "type": "small",
+    "hp": 4602,
+    "speed": 0.72,
+    "goldReward": 4.2,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 12,
+    "name": "몬스터 12R",
+    "type": "large",
+    "hp": 5208,
+    "speed": 0.94,
+    "goldReward": 4.2,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 13,
+    "name": "몬스터 13R",
+    "type": "general",
+    "hp": 5803,
+    "speed": 0.72,
+    "goldReward": 4.6,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 14,
+    "name": "몬스터 14R",
+    "type": "small",
+    "hp": 6382,
+    "speed": 0.81,
+    "goldReward": 4.6,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 15,
+    "name": "몬스터 15R",
+    "type": "large",
+    "hp": 6952,
+    "speed": 0.94,
+    "goldReward": 4.8,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 16,
+    "name": "보스 16R",
+    "type": "boss_normal",
+    "hp": 38751,
+    "speed": 0.82,
+    "goldReward": 455.3,
+    "isBoss": true,
+    "imagePath": ""
+  },
+  {
+    "id": 17,
+    "name": "몬스터 17R",
+    "type": "general",
+    "hp": 7255,
+    "speed": 0.77,
+    "goldReward": 5,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 18,
+    "name": "몬스터 18R",
+    "type": "small",
+    "hp": 8615,
+    "speed": 0.98,
+    "goldReward": 5,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 19,
+    "name": "몬스터 19R",
+    "type": "large",
+    "hp": 9949,
+    "speed": 0.84,
+    "goldReward": 5.2,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 20,
+    "name": "몬스터 20R",
+    "type": "general",
+    "hp": 11260,
+    "speed": 0.77,
+    "goldReward": 5.5,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 21,
+    "name": "몬스터 21R",
+    "type": "small",
+    "hp": 12546,
+    "speed": 0.98,
+    "goldReward": 5.5,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 22,
+    "name": "몬스터 22R",
+    "type": "large",
+    "hp": 13808,
+    "speed": 0.84,
+    "goldReward": 5.7,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 23,
+    "name": "몬스터 23R",
+    "type": "general",
+    "hp": 15045,
+    "speed": 0.77,
+    "goldReward": 5.7,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 24,
+    "name": "보스 24R",
+    "type": "boss_normal",
+    "hp": 98368,
+    "speed": 0.7,
+    "goldReward": 660.4,
+    "isBoss": true,
+    "imagePath": ""
+  },
+  {
+    "id": 25,
+    "name": "몬스터 25R",
+    "type": "small",
+    "hp": 15226,
+    "speed": 1.05,
+    "goldReward": 5.9,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 26,
+    "name": "몬스터 26R",
+    "type": "large",
+    "hp": 17486,
+    "speed": 0.77,
+    "goldReward": 6.1,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 27,
+    "name": "몬스터 27R",
+    "type": "general",
+    "hp": 19706,
+    "speed": 0.92,
+    "goldReward": 6.1,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 28,
+    "name": "몬스터 28R",
+    "type": "small",
+    "hp": 21886,
+    "speed": 1.12,
+    "goldReward": 6.3,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 29,
+    "name": "몬스터 29R",
+    "type": "large",
+    "hp": 24029,
+    "speed": 0.84,
+    "goldReward": 6.3,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 30,
+    "name": "몬스터 30R",
+    "type": "general",
+    "hp": 26136,
+    "speed": 0.77,
+    "goldReward": 6.7,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 31,
+    "name": "몬스터 31R",
+    "type": "small",
+    "hp": 28206,
+    "speed": 0.84,
+    "goldReward": 5.9,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 32,
+    "name": "보스 32R",
+    "type": "boss_large",
+    "hp": 232163,
+    "speed": 0.75,
+    "goldReward": 838.5,
+    "isBoss": true,
+    "imagePath": ""
+  },
+  {
+    "id": 33,
+    "name": "몬스터 33R",
+    "type": "large",
+    "hp": 30245,
+    "speed": 1.11,
+    "goldReward": 6.1,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 34,
+    "name": "몬스터 34R",
+    "type": "general",
+    "hp": 32477,
+    "speed": 0.84,
+    "goldReward": 6.3,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 35,
+    "name": "몬스터 35R",
+    "type": "small",
+    "hp": 34671,
+    "speed": 0.82,
+    "goldReward": 6.5,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 36,
+    "name": "몬스터 36R",
+    "type": "large",
+    "hp": 36832,
+    "speed": 0.92,
+    "goldReward": 6.6,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 37,
+    "name": "몬스터 37R",
+    "type": "general",
+    "hp": 38956,
+    "speed": 0.82,
+    "goldReward": 6.7,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 38,
+    "name": "몬스터 38R",
+    "type": "small",
+    "hp": 41047,
+    "speed": 1.18,
+    "goldReward": 5.9,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 39,
+    "name": "몬스터 39R",
+    "type": "large",
+    "hp": 43104,
+    "speed": 0.92,
+    "goldReward": 6.1,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 40,
+    "name": "보스 40R",
+    "type": "boss_normal",
+    "hp": 354748,
+    "speed": 0.82,
+    "goldReward": 850.2,
+    "isBoss": true,
+    "imagePath": ""
+  },
+  {
+    "id": 41,
+    "name": "몬스터 41R",
+    "type": "general",
+    "hp": 43684,
+    "speed": 0.82,
+    "goldReward": 6.3,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 42,
+    "name": "몬스터 42R",
+    "type": "small",
+    "hp": 43562,
+    "speed": 0.99,
+    "goldReward": 6.3,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 43,
+    "name": "몬스터 43R",
+    "type": "large",
+    "hp": 43488,
+    "speed": 1.26,
+    "goldReward": 6.6,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 44,
+    "name": "몬스터 44R",
+    "type": "general",
+    "hp": 45218,
+    "speed": 0.97,
+    "goldReward": 6.7,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 45,
+    "name": "몬스터 45R",
+    "type": "small",
+    "hp": 46921,
+    "speed": 0.82,
+    "goldReward": 5.9,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 46,
+    "name": "몬스터 46R",
+    "type": "large",
+    "hp": 48601,
+    "speed": 1.04,
+    "goldReward": 5.9,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 47,
+    "name": "몬스터 47R",
+    "type": "general",
+    "hp": 50255,
+    "speed": 0.82,
+    "goldReward": 6,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 48,
+    "name": "보스 48R",
+    "type": "boss_small",
+    "hp": 453761,
+    "speed": 0.86,
+    "goldReward": 849.6,
+    "isBoss": true,
+    "imagePath": ""
+  },
+  {
+    "id": 49,
+    "name": "몬스터 49R",
+    "type": "small",
+    "hp": 52979,
+    "speed": 0.98,
+    "goldReward": 6.1,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 50,
+    "name": "몬스터 50R",
+    "type": "large",
+    "hp": 54341,
+    "speed": 1.04,
+    "goldReward": 6.2,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 51,
+    "name": "몬스터 51R",
+    "type": "general",
+    "hp": 55703,
+    "speed": 0.82,
+    "goldReward": 6.3,
+    "isBoss": false,
+    "imagePath": ""
+  },
+  {
+    "id": 52,
+    "name": "보스 52R",
+    "type": "boss_large",
+    "hp": 620936,
+    "speed": 0.91,
+    "goldReward": 942.9,
+    "isBoss": true,
+    "imagePath": ""
+  }
 ];
 
 
 const DEFAULT_WAVES = [
-  {round:1,monsterId:1,count:23,timeLimit:0,timeAttack:false,clearGoldBonus:10,spawnInterval:1800},
-  {round:2,monsterId:2,count:10,timeLimit:0,timeAttack:false,clearGoldBonus:12,spawnInterval:1800},
-  {round:3,monsterId:3,count:5,timeLimit:0,timeAttack:false,clearGoldBonus:14,spawnInterval:1800},
-  {round:4,monsterId:4,count:10,timeLimit:0,timeAttack:false,clearGoldBonus:16,spawnInterval:1750},
-  {round:5,monsterId:5,count:25,timeLimit:0,timeAttack:false,clearGoldBonus:19,spawnInterval:1750},
-  {round:6,monsterId:6,count:20,timeLimit:0,timeAttack:false,clearGoldBonus:21,spawnInterval:1750},
-  {round:7,monsterId:7,count:22,timeLimit:0,timeAttack:false,clearGoldBonus:23,spawnInterval:1750},
-  {round:8,monsterId:8,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1700},
-  {round:9,monsterId:9,count:25,timeLimit:0,timeAttack:false,clearGoldBonus:28,spawnInterval:1700},
-  {round:10,monsterId:10,count:27,timeLimit:0,timeAttack:false,clearGoldBonus:30,spawnInterval:1700},
-  {round:11,monsterId:11,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:33,spawnInterval:1700},
-  {round:12,monsterId:12,count:25,timeLimit:0,timeAttack:false,clearGoldBonus:35,spawnInterval:1650},
-  {round:13,monsterId:13,count:27,timeLimit:0,timeAttack:false,clearGoldBonus:37,spawnInterval:1650},
-  {round:14,monsterId:14,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:40,spawnInterval:1650},
-  {round:15,monsterId:15,count:27,timeLimit:0,timeAttack:false,clearGoldBonus:42,spawnInterval:1650},
-  {round:16,monsterId:16,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1600},
-  {round:17,monsterId:17,count:27,timeLimit:0,timeAttack:false,clearGoldBonus:46,spawnInterval:1600},
-  {round:18,monsterId:18,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:49,spawnInterval:1600},
-  {round:19,monsterId:19,count:25,timeLimit:0,timeAttack:false,clearGoldBonus:51,spawnInterval:1600},
-  {round:20,monsterId:20,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:53,spawnInterval:1550},
-  {round:21,monsterId:21,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:56,spawnInterval:1550},
-  {round:22,monsterId:22,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:58,spawnInterval:1550},
-  {round:23,monsterId:23,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:60,spawnInterval:1550},
-  {round:24,monsterId:24,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1500},
-  {round:25,monsterId:25,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:65,spawnInterval:1500},
-  {round:26,monsterId:26,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:67,spawnInterval:1500},
-  {round:27,monsterId:27,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:69,spawnInterval:1500},
-  {round:28,monsterId:28,count:29,timeLimit:0,timeAttack:false,clearGoldBonus:72,spawnInterval:1450},
-  {round:29,monsterId:29,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:74,spawnInterval:1450},
-  {round:30,monsterId:30,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:76,spawnInterval:1450},
-  {round:31,monsterId:31,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:79,spawnInterval:1450},
-  {round:32,monsterId:32,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1400},
-  {round:33,monsterId:33,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:83,spawnInterval:1400},
-  {round:34,monsterId:34,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:86,spawnInterval:1400},
-  {round:35,monsterId:35,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:88,spawnInterval:1400},
-  {round:36,monsterId:36,count:36,timeLimit:0,timeAttack:false,clearGoldBonus:90,spawnInterval:1350},
-  {round:37,monsterId:37,count:31,timeLimit:0,timeAttack:false,clearGoldBonus:92,spawnInterval:1350},
-  {round:38,monsterId:38,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:95,spawnInterval:1350},
-  {round:39,monsterId:39,count:36,timeLimit:0,timeAttack:false,clearGoldBonus:97,spawnInterval:1350},
-  {round:40,monsterId:40,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1300},
-  {round:41,monsterId:41,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:102,spawnInterval:1300},
-  {round:42,monsterId:42,count:38,timeLimit:0,timeAttack:false,clearGoldBonus:104,spawnInterval:1300},
-  {round:43,monsterId:43,count:36,timeLimit:0,timeAttack:false,clearGoldBonus:106,spawnInterval:1300},
-  {round:44,monsterId:44,count:36,timeLimit:0,timeAttack:false,clearGoldBonus:108,spawnInterval:1250},
-  {round:45,monsterId:45,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:111,spawnInterval:1250},
-  {round:46,monsterId:46,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:113,spawnInterval:1250},
-  {round:47,monsterId:47,count:34,timeLimit:0,timeAttack:false,clearGoldBonus:115,spawnInterval:1250},
-  {round:48,monsterId:48,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1200},
-  {round:49,monsterId:49,count:10,timeLimit:0,timeAttack:false,clearGoldBonus:120,spawnInterval:1200},
-  {round:50,monsterId:50,count:1,timeLimit:120,timeAttack:true,clearGoldBonus:0,spawnInterval:1200}
+  {
+    "round": 1,
+    "monsterId": 1,
+    "count": 23,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 10,
+    "spawnInterval": 2200
+  },
+  {
+    "round": 2,
+    "monsterId": 2,
+    "count": 23,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 12,
+    "spawnInterval": 2200
+  },
+  {
+    "round": 3,
+    "monsterId": 3,
+    "count": 25,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 13,
+    "spawnInterval": 2150
+  },
+  {
+    "round": 4,
+    "monsterId": 4,
+    "count": 25,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 15,
+    "spawnInterval": 2150
+  },
+  {
+    "round": 5,
+    "monsterId": 5,
+    "count": 25,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 17,
+    "spawnInterval": 2150
+  },
+  {
+    "round": 6,
+    "monsterId": 6,
+    "count": 26,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 18,
+    "spawnInterval": 2150
+  },
+  {
+    "round": 7,
+    "monsterId": 7,
+    "count": 26,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 20,
+    "spawnInterval": 2100
+  },
+  {
+    "round": 8,
+    "monsterId": 8,
+    "count": 1,
+    "timeLimit": 120,
+    "timeAttack": true,
+    "clearGoldBonus": 26,
+    "spawnInterval": 2100
+  },
+  {
+    "round": 9,
+    "monsterId": 9,
+    "count": 27,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 23,
+    "spawnInterval": 2100
+  },
+  {
+    "round": 10,
+    "monsterId": 10,
+    "count": 27,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 25,
+    "spawnInterval": 2100
+  },
+  {
+    "round": 11,
+    "monsterId": 11,
+    "count": 29,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 26,
+    "spawnInterval": 2050
+  },
+  {
+    "round": 12,
+    "monsterId": 12,
+    "count": 29,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 28,
+    "spawnInterval": 2050
+  },
+  {
+    "round": 13,
+    "monsterId": 13,
+    "count": 29,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 30,
+    "spawnInterval": 2050
+  },
+  {
+    "round": 14,
+    "monsterId": 14,
+    "count": 30,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 31,
+    "spawnInterval": 2000
+  },
+  {
+    "round": 15,
+    "monsterId": 15,
+    "count": 30,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 33,
+    "spawnInterval": 2000
+  },
+  {
+    "round": 16,
+    "monsterId": 16,
+    "count": 1,
+    "timeLimit": 120,
+    "timeAttack": true,
+    "clearGoldBonus": 43,
+    "spawnInterval": 2000
+  },
+  {
+    "round": 17,
+    "monsterId": 17,
+    "count": 33,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 36,
+    "spawnInterval": 2000
+  },
+  {
+    "round": 18,
+    "monsterId": 18,
+    "count": 33,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 38,
+    "spawnInterval": 1950
+  },
+  {
+    "round": 19,
+    "monsterId": 19,
+    "count": 35,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 39,
+    "spawnInterval": 1950
+  },
+  {
+    "round": 20,
+    "monsterId": 20,
+    "count": 35,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 41,
+    "spawnInterval": 1950
+  },
+  {
+    "round": 21,
+    "monsterId": 21,
+    "count": 35,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 43,
+    "spawnInterval": 1950
+  },
+  {
+    "round": 22,
+    "monsterId": 22,
+    "count": 36,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 44,
+    "spawnInterval": 1900
+  },
+  {
+    "round": 23,
+    "monsterId": 23,
+    "count": 36,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 46,
+    "spawnInterval": 1900
+  },
+  {
+    "round": 24,
+    "monsterId": 24,
+    "count": 1,
+    "timeLimit": 120,
+    "timeAttack": true,
+    "clearGoldBonus": 60,
+    "spawnInterval": 1900
+  },
+  {
+    "round": 25,
+    "monsterId": 25,
+    "count": 38,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 49,
+    "spawnInterval": 1850
+  },
+  {
+    "round": 26,
+    "monsterId": 26,
+    "count": 38,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 51,
+    "spawnInterval": 1850
+  },
+  {
+    "round": 27,
+    "monsterId": 27,
+    "count": 39,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 52,
+    "spawnInterval": 1850
+  },
+  {
+    "round": 28,
+    "monsterId": 28,
+    "count": 39,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 54,
+    "spawnInterval": 1850
+  },
+  {
+    "round": 29,
+    "monsterId": 29,
+    "count": 39,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 56,
+    "spawnInterval": 1800
+  },
+  {
+    "round": 30,
+    "monsterId": 30,
+    "count": 41,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 57,
+    "spawnInterval": 1800
+  },
+  {
+    "round": 31,
+    "monsterId": 31,
+    "count": 41,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 59,
+    "spawnInterval": 1800
+  },
+  {
+    "round": 32,
+    "monsterId": 32,
+    "count": 1,
+    "timeLimit": 120,
+    "timeAttack": true,
+    "clearGoldBonus": 76,
+    "spawnInterval": 1750
+  },
+  {
+    "round": 33,
+    "monsterId": 33,
+    "count": 39,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 62,
+    "spawnInterval": 1750
+  },
+  {
+    "round": 34,
+    "monsterId": 34,
+    "count": 39,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 64,
+    "spawnInterval": 1750
+  },
+  {
+    "round": 35,
+    "monsterId": 35,
+    "count": 39,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 66,
+    "spawnInterval": 1750
+  },
+  {
+    "round": 36,
+    "monsterId": 36,
+    "count": 40,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 67,
+    "spawnInterval": 1700
+  },
+  {
+    "round": 37,
+    "monsterId": 37,
+    "count": 40,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 69,
+    "spawnInterval": 1700
+  },
+  {
+    "round": 38,
+    "monsterId": 38,
+    "count": 42,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 70,
+    "spawnInterval": 1700
+  },
+  {
+    "round": 39,
+    "monsterId": 39,
+    "count": 42,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 72,
+    "spawnInterval": 1700
+  },
+  {
+    "round": 40,
+    "monsterId": 40,
+    "count": 1,
+    "timeLimit": 120,
+    "timeAttack": true,
+    "clearGoldBonus": 93,
+    "spawnInterval": 1650
+  },
+  {
+    "round": 41,
+    "monsterId": 41,
+    "count": 41,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 75,
+    "spawnInterval": 1650
+  },
+  {
+    "round": 42,
+    "monsterId": 42,
+    "count": 41,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 77,
+    "spawnInterval": 1650
+  },
+  {
+    "round": 43,
+    "monsterId": 43,
+    "count": 41,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 79,
+    "spawnInterval": 1600
+  },
+  {
+    "round": 44,
+    "monsterId": 44,
+    "count": 42,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 80,
+    "spawnInterval": 1600
+  },
+  {
+    "round": 45,
+    "monsterId": 45,
+    "count": 42,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 82,
+    "spawnInterval": 1600
+  },
+  {
+    "round": 46,
+    "monsterId": 46,
+    "count": 44,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 83,
+    "spawnInterval": 1600
+  },
+  {
+    "round": 47,
+    "monsterId": 47,
+    "count": 44,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 85,
+    "spawnInterval": 1550
+  },
+  {
+    "round": 48,
+    "monsterId": 48,
+    "count": 1,
+    "timeLimit": 120,
+    "timeAttack": true,
+    "clearGoldBonus": 109,
+    "spawnInterval": 1550
+  },
+  {
+    "round": 49,
+    "monsterId": 49,
+    "count": 45,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 88,
+    "spawnInterval": 1550
+  },
+  {
+    "round": 50,
+    "monsterId": 50,
+    "count": 46,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 90,
+    "spawnInterval": 1550
+  },
+  {
+    "round": 51,
+    "monsterId": 51,
+    "count": 47,
+    "timeLimit": 0,
+    "timeAttack": false,
+    "clearGoldBonus": 92,
+    "spawnInterval": 1500
+  },
+  {
+    "round": 52,
+    "monsterId": 52,
+    "count": 1,
+    "timeLimit": 120,
+    "timeAttack": true,
+    "clearGoldBonus": 117,
+    "spawnInterval": 1500
+  }
 ];
 
 const DEFAULT_DPS_MODE = {
-  spawnInterval: 2400,
-  monsterSpeed: 0.9,
-  monsterHp: 9007199254740991,
-  goldReward: 0,
-  startGold: 0,
-  gachaEnabled: false,
-  types: [
-    {type:'general', count:4},
-    {type:'small',   count:4},
-    {type:'large',   count:4},
-    {type:'boss_normal', count:1},
-    {type:'boss_small',  count:1},
-    {type:'boss_large',  count:1}
-  ]
+  "spawnInterval": 2400,
+  "monsterSpeed": 0.9,
+  "monsterHp": 9007199254740991,
+  "goldReward": 0,
+  "types": [
+    {
+      "type": "general",
+      "count": 10
+    },
+    {
+      "type": "small",
+      "count": 10
+    },
+    {
+      "type": "large",
+      "count": 10
+    },
+    {
+      "type": "boss_normal",
+      "count": 1
+    },
+    {
+      "type": "boss_small",
+      "count": 1
+    },
+    {
+      "type": "boss_large",
+      "count": 1
+    }
+  ],
+  "startGold": 0,
+  "gachaEnabled": false
 };
 
 const TIERS = ['normal','rare','ancient','relic','saga','legend','epic','myth','primordial'];
@@ -438,7 +2823,7 @@ const MONSTER_TYPE_LABELS = {
   boss: '보스(레거시)',
   boss_normal: '보스_일반', boss_large: '보스_대형', boss_small: '보스_소형'
 };
-const BOSS_ROUNDS = [8,16,24,32,40,48,49,50];
+const BOSS_ROUNDS = [8,16,24,32,40,48,52];
 
 const LS_KEYS = {
   system: 'rtd_configOverride',
@@ -526,7 +2911,12 @@ function renderSystem(){
 
   // Ensure nested objects
   if(!cfg.GACHA_RATES) cfg.GACHA_RATES = deepClone(DEFAULT_CONFIG.GACHA_RATES);
-  if(!cfg.TYPE_AFFINITY) cfg.TYPE_AFFINITY = deepClone(DEFAULT_CONFIG.TYPE_AFFINITY);
+  const currentGachaTotal = Object.values(cfg.GACHA_RATES).reduce((a,b)=>a+b,0);
+  if(currentGachaTotal === 99999 && cfg.GACHA_RATES.normal === 50000) cfg.GACHA_RATES.normal = 50001;
+  if(!cfg.SYNTHESIS_RATES) cfg.SYNTHESIS_RATES = deepClone(DEFAULT_CONFIG.SYNTHESIS_RATES);
+  if(!cfg.TYPE_EFFECTIVENESS) {
+    cfg.TYPE_EFFECTIVENESS = deepClone(cfg.TYPE_AFFINITY || DEFAULT_CONFIG.TYPE_EFFECTIVENESS);
+  }
 
   const sections = [
     { title:'💰 경제 시스템', fields:[
@@ -539,8 +2929,9 @@ function renderSystem(){
       {key:'MAX_MONSTERS', label:'최대 몬스터', val:cfg.MAX_MONSTERS??50, type:'number'}
     ]},
     { title:'🔄 라운드', fields:[
-      {key:'TOTAL_ROUNDS', label:'총 라운드', val:cfg.TOTAL_ROUNDS??50, type:'number'},
+      {key:'TOTAL_ROUNDS', label:'총 라운드', val:cfg.TOTAL_ROUNDS??52, type:'number'},
       {key:'SPAWN_INTERVAL', label:'스폰 간격(ms)', val:cfg.SPAWN_INTERVAL??800, type:'number'},
+      {key:'NORMAL_SPAWN_INTERVAL_MULTIPLIER', label:'일반 몬스터 스폰 간격 배율', val:cfg.NORMAL_SPAWN_INTERVAL_MULTIPLIER??1.25, type:'number', step:'0.01'},
       {key:'BETWEEN_ROUND_DELAY',            label:'라운드 사이 딜레이 — 일반(ms)',      val:cfg.BETWEEN_ROUND_DELAY??1000,            type:'number'},
       {key:'BETWEEN_ROUND_DELAY_BOSS_START', label:'라운드 사이 딜레이 — 보스 시작(ms)', val:cfg.BETWEEN_ROUND_DELAY_BOSS_START??3000, type:'number'},
       {key:'BETWEEN_ROUND_DELAY_BOSS_END',   label:'라운드 사이 딜레이 — 보스 완료(ms)', val:cfg.BETWEEN_ROUND_DELAY_BOSS_END??3000,   type:'number'}
@@ -569,7 +2960,7 @@ function renderSystem(){
   const rateLabels = {normal:'일반',rare:'레어',ancient:'고대',relic:'유물',saga:'서사',legend:'전설',epic:'에픽',myth:'신화',primordial:'태초'};
   TIERS.forEach(t => {
     const v = cfg.GACHA_RATES[t] ?? DEFAULT_CONFIG.GACHA_RATES[t] ?? 0;
-    const total = Object.values(cfg.GACHA_RATES).reduce((a,b)=>a+b,0)||99999;
+    const total = Object.values(cfg.GACHA_RATES).reduce((a,b)=>a+b,0)||100000;
     const pct = (v / total * 100).toFixed(4);
     html += `<div class="form-row">
       <label>${rateLabels[t]}</label>
@@ -579,11 +2970,26 @@ function renderSystem(){
   });
   html += '<div class="sum-row" id="rateSum"></div></div>';
 
+  // Synthesis Rates
+  html += '<div class="section"><div class="section-title">🔮 합성 확률 <span style="font-size:11px;color:#b79ad8">일반 타워 3개 소모 · 기대 DPS -5%</span></div>';
+  const synthesisLabels = {rare:'레어',ancient:'고대',relic:'유물'};
+  ['rare','ancient','relic'].forEach(t => {
+    const v = cfg.SYNTHESIS_RATES[t] ?? DEFAULT_CONFIG.SYNTHESIS_RATES[t] ?? 0;
+    const total = Object.values(cfg.SYNTHESIS_RATES).reduce((a,b)=>a+b,0) || 100000;
+    const pct = (v / total * 100).toFixed(3);
+    html += `<div class="form-row">
+      <label>${synthesisLabels[t]} 타워</label>
+      <input type="number" step="1" data-synthesis-rate="${t}" value="${v}" style="width:120px">
+      <span class="pct" id="synthesis-pct-${t}">${pct}%</span>
+    </div>`;
+  });
+  html += '<div class="sum-row" id="synthesisRateSum"></div></div>';
+
   // Type Affinity
   html += '<div class="section"><div class="section-title">⚔️ 타입 상성</div>';
   html += '<div class="tbl-wrap"><table class="affinity-tbl"><thead><tr><th>타입</th><th>소형 배율</th><th>대형 배율</th><th>일반 배율</th></tr></thead><tbody>';
   ['normal','explosive','vibration'].forEach(at => {
-    const aff = cfg.TYPE_AFFINITY[at] ?? DEFAULT_CONFIG.TYPE_AFFINITY[at];
+    const aff = cfg.TYPE_EFFECTIVENESS[at] ?? DEFAULT_CONFIG.TYPE_EFFECTIVENESS[at];
     const generalVal = aff.general !== undefined ? aff.general : 1.0;
     html += `<tr>
       <td style="font-weight:600">${ATK_LABELS[at]}</td>
@@ -621,20 +3027,25 @@ function renderSystem(){
   area.querySelectorAll('[data-rate]').forEach(inp => {
     inp.addEventListener('input', updateGachaSum);
   });
+  area.querySelectorAll('[data-synthesis-rate]').forEach(inp => {
+    inp.addEventListener('input', updateSynthesisRateSum);
+  });
   updateGachaSum();
+  updateSynthesisRateSum();
 }
 
 function updateGachaSum(){
-  let sum = 0;
-  document.querySelectorAll('[data-rate]').forEach(inp => {
+  const rateInputs = Array.from(document.querySelectorAll('[data-rate]'));
+  const sum = rateInputs.reduce((total, inp) => total + (parseFloat(inp.value) || 0), 0);
+  const displayTotal = sum || 100000;
+
+  rateInputs.forEach(inp => {
     const v = parseFloat(inp.value) || 0;
-    sum += v;
     const pctEl = document.getElementById('pct-' + inp.dataset.rate);
-    const _total = Object.values(cfg.GACHA_RATES).reduce((a,b)=>a+b,0)||99999;
-    if(pctEl) pctEl.textContent = (v/_total*100).toFixed(4) + '%';
+    if(pctEl) pctEl.textContent = (v/displayTotal*100).toFixed(4) + '%';
   });
   const sumEl = document.getElementById('rateSum');
-  const _sumTotal = 99999;
+  const _sumTotal = 100000;
   const pct = (sum / _sumTotal * 100).toFixed(4);
   const ok = sum >= 99000 && sum <= 101000;
   sumEl.textContent = `합계: ${pct}% (${sum}/${_sumTotal})`;
@@ -651,10 +3062,14 @@ function collectSystem(){
   document.querySelectorAll('[data-rate]').forEach(inp => {
     cfg.GACHA_RATES[inp.dataset.rate] = parseInt(inp.value) || 0;
   });
-  cfg.TYPE_AFFINITY = {normal:{},explosive:{},vibration:{}};
+  cfg.SYNTHESIS_RATES = {};
+  document.querySelectorAll('[data-synthesis-rate]').forEach(inp => {
+    cfg.SYNTHESIS_RATES[inp.dataset.synthesisRate] = parseInt(inp.value) || 0;
+  });
+  cfg.TYPE_EFFECTIVENESS = {normal:{},explosive:{},vibration:{}};
   document.querySelectorAll('[data-aff]').forEach(inp => {
     const [at, size] = inp.dataset.aff.split('-');
-    cfg.TYPE_AFFINITY[at][size] = parseFloat(inp.value) || 0;
+    cfg.TYPE_EFFECTIVENESS[at][size] = parseFloat(inp.value) || 0;
   });
   return cfg;
 }
@@ -857,24 +3272,28 @@ function renderMonster(){
   const monsters = loadLS(LS_KEYS.monster, DEFAULT_MONSTERS);
   const waves    = loadLS(LS_KEYS.stage,   DEFAULT_WAVES);
   const area = document.getElementById('monsterArea');
-  let html = '<div class="section"><div class="section-title">💀 몬스터 (ID 1~50)</div>';
+  let html = '<div class="section"><div class="section-title">💀 몬스터 (ID 1~52)</div>';
   html += '<div class="tbl-wrap"><table id="monsterTable"><thead><tr>';
-  html += '<th>ID</th><th>이름</th><th>타입</th><th>보스여부</th><th>기본HP</th><th>수량</th><th>속도</th><th>골드보상</th><th>이미지 경로</th>';
+  html += '<th>ID</th><th>이름</th><th>타입</th><th>보스여부</th><th title="1마리의 생명력">기본HP</th><th title="기본HP × 설정 수량">T_HP</th><th title="스테이지에 적용되는 몬스터 수량">수량</th><th>속도</th><th title="1마리 처치 골드">골드보상</th><th title="골드보상 × 설정 수량 (클리어 골드 제외)">T_GOLD</th><th>이미지 경로</th>';
   html += '</tr></thead><tbody>';
 
   monsters.forEach((m, i) => {
     const imgVal = m.imagePath || '';
     const wave  = waves.find(w => w.monsterId === m.id);
     const count = wave ? (wave.count || 0) : 0;
+    const totalHp = m.hp * count;
+    const totalGold = m.goldReward * count;
     html += `<tr class="${m.isBoss?'boss-row':''}" data-idx="${i}">
       <td><input type="number" value="${m.id}" data-field="id" readonly style="width:50px"></td>
       <td><input type="text" value="${m.name}" data-field="name" style="width:100px"></td>
       <td><select data-field="type">${MONSTER_TYPES.map(t=>`<option value="${t}"${t===m.type?' selected':''}>${MONSTER_TYPE_LABELS[t]||t}</option>`).join('')}</select></td>
       <td><input type="checkbox" data-field="isBoss" ${m.isBoss?'checked':''} style="width:auto"></td>
       <td><input type="number" value="${m.hp}" data-field="hp" style="width:80px"></td>
-      <td><input type="number" value="${count}" data-field="count" style="width:60px" min="0" ${m.isBoss?'title="보스 1마리 고정"':''}></td>
+      <td><span data-total-hp style="display:inline-block;min-width:90px;text-align:right;font-weight:600;color:#88CCFF">${totalHp.toLocaleString()}</span></td>
+      <td><input type="number" value="${count}" data-field="count" style="width:60px" min="0" title="스테이지에 적용되는 몬스터 수량"></td>
       <td><input type="number" step="0.01" value="${m.speed}" data-field="speed" style="width:70px"></td>
       <td><input type="number" value="${m.goldReward}" data-field="goldReward" style="width:70px"></td>
+      <td><span data-total-gold style="display:inline-block;min-width:90px;text-align:right;font-weight:600;color:#FFD700">${totalGold.toLocaleString()}</span></td>
       <td><input type="text" value="${imgVal}" data-field="imagePath" style="width:200px" placeholder="assets/Art/monsters/파일명.png"></td>
     </tr>`;
   });
@@ -883,14 +3302,48 @@ function renderMonster(){
   area.innerHTML = html;
 
   const table = document.getElementById('monsterTable');
+  table.addEventListener('input', e => {
+    const tr = e.target.closest('tr');
+    if(!tr) return;
+    if(['hp','count','goldReward'].includes(e.target.dataset.field)) updateMonsterTotals(tr);
+  });
   table.addEventListener('change', e => {
     const tr = e.target.closest('tr');
     if(!tr) return;
     const field = e.target.dataset.field;
     if(field === 'isBoss'){
       tr.classList.toggle('boss-row', e.target.checked);
+      updateMonsterTotals(tr);
     }
   });
+}
+
+function updateSynthesisRateSum(){
+  const rateInputs = Array.from(document.querySelectorAll('[data-synthesis-rate]'));
+  const sum = rateInputs.reduce((total, inp) => total + (parseFloat(inp.value) || 0), 0);
+  const displayTotal = sum || 100000;
+  rateInputs.forEach(inp => {
+    const v = parseFloat(inp.value) || 0;
+    const pctEl = document.getElementById('synthesis-pct-' + inp.dataset.synthesisRate);
+    if(pctEl) pctEl.textContent = (v / displayTotal * 100).toFixed(3) + '%';
+  });
+  const sumEl = document.getElementById('synthesisRateSum');
+  const expectedTotal = 100000;
+  const pct = (sum / expectedTotal * 100).toFixed(3);
+  const ok = sum >= 99000 && sum <= 101000;
+  sumEl.textContent = `합계: ${pct}% (${sum}/${expectedTotal})`;
+  sumEl.className = 'sum-row ' + (ok ? 'ok' : 'err');
+  if(!ok) sumEl.textContent += ' ⚠️ 가중치 합계가 100000 기준에서 너무 벗어났습니다!';
+}
+
+function updateMonsterTotals(tr){
+  const hp = parseInt(tr.querySelector('[data-field="hp"]').value) || 0;
+  const gold = parseInt(tr.querySelector('[data-field="goldReward"]').value) || 0;
+  const countEl = tr.querySelector('[data-field="count"]');
+  const count = Math.max(0, parseInt(countEl.value) || 0);
+  countEl.value = count;
+  tr.querySelector('[data-total-hp]').textContent = (hp * count).toLocaleString();
+  tr.querySelector('[data-total-gold]').textContent = (gold * count).toLocaleString();
 }
 
 function collectMonster(){
@@ -922,7 +3375,7 @@ function collectMonster(){
 function renderStage(){
   const waves = loadLS(LS_KEYS.stage, DEFAULT_WAVES);
   const area = document.getElementById('stageArea');
-  let html = '<div class="section"><div class="section-title">📋 스테이지 (50 라운드)</div>';
+  let html = '<div class="section"><div class="section-title">📋 스테이지 (52 라운드)</div>';
   html += '<div class="tbl-wrap"><table id="stageTable"><thead><tr>';
   html += '<th>라운드</th><th>몬스터 ID</th><th>⏱제한시간(초)</th><th>⚔️타임어택</th><th>🏆클리어골드</th><th>🕒리스폰시간(ms)</th>';
   html += '</tr></thead><tbody>';
@@ -931,7 +3384,7 @@ function renderStage(){
   waves.forEach((w, i) => {
     const m = monsters.find(x => x.id === w.monsterId) || monsters[0];
     const isBoss = m ? m.isBoss : false;
-    const timeAttack = w.timeAttack !== undefined ? w.timeAttack : (w.timeLimit > 0 && isBoss);
+    const timeAttack = w.timeAttack === true;
     html += `<tr class="${isBoss?'boss-row':''}" data-idx="${i}">
       <td><input type="number" value="${w.round}" data-field="round" readonly style="width:50px"></td>
       <td><input type="number" value="${w.monsterId}" data-field="monsterId" style="width:70px"></td>
@@ -1210,9 +3663,15 @@ async function applyToCode() {
         
         let ratesStr = JSON.stringify(cfg.GACHA_RATES, null, 8).replace(/\n/g, '\n        ');
         text = text.replace(/GACHA_RATES:\s*\{[\s\S]*?\n\s*\}/, 'GACHA_RATES: ' + ratesStr.trim());
+
+        let synthesisRatesStr = JSON.stringify(cfg.SYNTHESIS_RATES, null, 8).replace(/\n/g, '\n        ');
+        text = text.replace(/SYNTHESIS_RATES:\s*\{[\s\S]*?\n\s*\}/, 'SYNTHESIS_RATES: ' + synthesisRatesStr.trim());
         
-        let typeStr = JSON.stringify(cfg.TYPE_AFFINITY, null, 8).replace(/\n/g, '\n        ');
-        text = text.replace(/TYPE_AFFINITY:\s*\{[\s\S]*?\n\s*\}/, 'TYPE_AFFINITY: ' + typeStr.trim());
+        let typeStr = JSON.stringify(cfg.TYPE_EFFECTIVENESS, null, 8).replace(/\n/g, '\n        ');
+        text = text.replace(
+            /TYPE_EFFECTIVENESS:\s*\{[\s\S]*?\n    \},\n    \/\/ 보스 방어/,
+            'TYPE_EFFECTIVENESS: ' + typeStr.trim() + ',\n    // 보스 방어'
+        );
         
         // 쓰기 직전 핸들 재획득 (Windows 캐시 충돌 방지)
         const freshCfgHandle = await jsHandle.getFileHandle('config.js');

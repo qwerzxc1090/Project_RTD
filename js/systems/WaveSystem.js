@@ -47,11 +47,6 @@ Game.WaveSystem.prototype = {
         return this.isGameStarted && !this.isWaveActive && this.currentRound < Game.Config.TOTAL_ROUNDS;
     },
     
-    // 스테이지 가중치: 1 + (스테이지 × 0.1)
-    getStageMultiplier: function(round) {
-        return 1 + round * 0.1;
-    },
-
     // 스테이지별 스폰 간격: stats.json waveData.spawnInterval에서 읽음 (하드코딩 제거)
     // 폴백: config.js SPAWN_INTERVAL
     
@@ -71,50 +66,40 @@ Game.WaveSystem.prototype = {
         this.monsterData = Game.MonsterData.getMonster(this.waveData.monsterId);
         if (!this.monsterData) return false;
 
-        var mult = this.getStageMultiplier(this.currentRound);
+        // 몬스터 테이블 값은 1마리 기준값이며, HP와 골드에 서로 다른
+        // 라운드 배율을 적용한다. HP는 정수 버림, 골드는 내부 1자리까지 유지한다.
+        var hpRoundRate = Number(Game.Config.MONSTER_HP_ROUND_RATE);
+        if (!isFinite(hpRoundRate) || hpRoundRate < 0) hpRoundRate = 0.0115;
+        var goldRoundRate = Number(Game.Config.GOLD_ROUND_RATE);
+        if (!isFinite(goldRoundRate) || goldRoundRate < 0) goldRoundRate = 0.005;
+        var hpMult = 1 + this.currentRound * hpRoundRate;
+        var goldMult = 1 + this.currentRound * goldRoundRate;
         // 스폰 간격: waveData.spawnInterval 우선, 없으면 config 폴백
         var spawnInterval = this.waveData.spawnInterval || Game.Config.SPAWN_INTERVAL;
-
-        if (this.monsterData.isBoss) {
-            // 보스: 수량 1 고정, goldReward = 보스 첫 타 전체 골드
-            this.scaledCount    = 1;
-            this.scaledHp       = Math.floor(this.monsterData.hp * mult);
-            this.scaledGold     = this.monsterData.goldReward;  // 보스 count=1
-            this.clearGoldBonus = this.waveData.clearGoldBonus || 0;
-        } else {
-            var MAX_SPAWN = 30;
-            var rawCount  = Math.ceil(this.waveData.count * mult);
-            var excess    = Math.max(0, rawCount - MAX_SPAWN);
-
-            // 수량: 최대 30 제한
-            this.scaledCount    = Math.min(rawCount, MAX_SPAWN);
-
-            // 초과 1마리당 HP +1%
-            var hpBoost = 1 + excess * 0.01;
-            this.scaledHp = Math.floor(this.monsterData.hp * mult * hpBoost);
-
-            // 마리당 골드 = goldReward(데이터에서 지정한 총 골드) / count → 소수점 1자리
-            // 예외: 결과가 1.0 미만(0.x)이면 1.0G로 보정 (최소 1G/마리)
-            var perKill = Math.round(this.monsterData.goldReward / this.waveData.count * 10) / 10;
-            this.scaledGold = Math.max(1.0, perKill);
-
-            this.clearGoldBonus = this.waveData.clearGoldBonus || 0;
-
-            if (excess > 0) {
-                console.log('[Wave'+this.currentRound+'] 초과:'+excess+'마리 → HP×'+hpBoost.toFixed(2)+' / 마리당 골드:'+this.scaledGold+'G');
+        // 일반 몬스터만 스폰 간격을 25% 늘린다. 보스 웨이브의 간격과
+        // 데이터에 명시된 타임어택 규칙은 그대로 유지한다.
+        if (!this.monsterData.isBoss) {
+            var normalIntervalMultiplier = Number(Game.Config.NORMAL_SPAWN_INTERVAL_MULTIPLIER);
+            if (!isFinite(normalIntervalMultiplier) || normalIntervalMultiplier <= 0) {
+                normalIntervalMultiplier = 1.25;
             }
+            spawnInterval = Math.round(spawnInterval * normalIntervalMultiplier);
         }
+
+        // 일반/보스 공통으로 수량은 테이블 값을 사용하고 HP·골드에 스테이지 배율 적용
+        this.scaledCount    = this.waveData.count;
+        this.scaledHp       = Math.floor(this.monsterData.hp * hpMult);
+        // 골드는 실제 누적값을 유지하며, 모든 몬스터 킬 골드는
+        // 스테이지 배율 적용 후 소수점 1자리까지만 저장한다.
+        this.scaledGold     = Math.round(this.monsterData.goldReward * goldMult * 10) / 10;
+        this.clearGoldBonus = this.waveData.clearGoldBonus || 0;
 
         this.spawnedInWave = 0;
         this.waveKills = 0;
         this.totalMonstersInWave = this.scaledCount;
         this.isWaveActive = true;
 
-        if (this.monsterData.isBoss) {
-            this.bossAlive = true;
-        } else {
-            this.bossAlive = false;
-        }
+        this.bossAlive = this.monsterData.isBoss && this.totalMonstersInWave > 0;
 
         var self = this;
         this.spawnTimer = this.scene.time.addEvent({
@@ -123,7 +108,7 @@ Game.WaveSystem.prototype = {
             repeat: this.totalMonstersInWave - 1
         });
 
-        this.scene.events.emit('waveStart', this.currentRound, this.waveData, mult, this.scaledCount, this.scaledHp, this.monsterData.hp, spawnInterval);
+        this.scene.events.emit('waveStart', this.currentRound, this.waveData, hpMult, this.scaledCount, this.scaledHp, this.monsterData.hp, spawnInterval);
 
         // ── timeLimit 기반 타임어택 (0이면 타이머 없음) ──
         var tl = this.waveData.timeLimit || 0;
@@ -143,9 +128,10 @@ Game.WaveSystem.prototype = {
         this.spawnedInWave++;
         this.monstersSpawned++;
 
-        // Emit spawn event (가중치·초과보정 적용된 HP, 골드 사용)
+        // Emit spawn event (스테이지 보정이 적용된 1마리 기준 HP·골드 사용)
         this.scene.events.emit('spawnMonster', {
             id: this.monsterData.id,
+            waveRound: this.currentRound,
             type: monsterType,
             hp: this.scaledHp,
             speed: this.monsterData.speed,
@@ -161,24 +147,19 @@ Game.WaveSystem.prototype = {
         }
     },
 
-    onMonsterKilled: function() {
-        // 보스 처치 여부 추적용 (일반 라운드에서는 진행에 영향 없음)
+    onMonsterKilled: function(monster) {
+        // 이전 스테이지에서 남아 있던 몬스터는 현재 스테이지 처치 수에 포함하지 않는다.
+        if (monster && monster.waveRound !== undefined && monster.waveRound !== this.currentRound) return;
         this.waveKills++;
-        // _pendingNextWave 제거됨 - 일반 라운드는 스폰 완료 후 자동 진행
+        // timeAttack=true이면 모든 몬스터 처치 여부를 다시 확인한다.
+        this._checkWaveComplete();
     },
     
     // 보스가 처치됐을 때 GameScene에서 호출
-    onBossKilled: function() {
-        this.bossAlive = false;
-        // 타이머 정리
-        if (this.bossTimer) {
-            this.bossTimer.remove();
-            this.bossTimer = null;
-        }
-        if (this.bossTickTimer) {
-            this.bossTickTimer.remove();
-            this.bossTickTimer = null;
-        }
+    onBossKilled: function(monster) {
+        if (monster && monster.waveRound !== undefined && monster.waveRound !== this.currentRound) return;
+        this.waveKills++;
+        this.bossAlive = this.waveKills < this.totalMonstersInWave;
         this._checkWaveComplete();
     },
     
@@ -277,10 +258,12 @@ Game.WaveSystem.prototype = {
     },
     
     _checkWaveComplete: function() {
-        // 보스 웨이브: 보스가 살아있으면 완료 안함 (보스 처치 필수)
-        if (this.waveData && this.monsterData.isBoss && this.bossAlive) return;
         if (!this.isWaveActive) return;
         if (this.spawnedInWave < this.totalMonstersInWave) return;
+
+        // 데이터에서 timeAttack=true인 스테이지만 전원 처치를 요구한다.
+        // 몬스터의 보스 여부는 스테이지 진행 조건에 영향을 주지 않는다.
+        if (this.waveData && this.waveData.timeAttack && this.waveKills < this.totalMonstersInWave) return;
 
         // ── 스폰 완료 ──
         this.isWaveActive = false;

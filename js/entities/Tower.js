@@ -13,6 +13,7 @@ Game.Tower = function(scene, x, y, unitData) {
     this.gridY = -1;
     this.rangeCircle = null;
     this.showingRange = false;
+    this.goldFarmComplete = false;
     
     // ── 스킬 모듈 장착 (Composition) ──
     this.skills = [];
@@ -555,6 +556,16 @@ Game.Tower.prototype._deactivateGoldBar = function() {
     if (this.goldDeltaBg) {
         this.goldDeltaBg.destroy();
         this.goldDeltaBg = null;
+    }
+};
+
+// 일반 _돈 타워는 골드 파밍을 마친 뒤부터 합성 재료로 인정한다.
+Game.Tower.prototype._completeGoldFarm = function() {
+    if (this.goldFarmComplete) return;
+    this.goldFarmComplete = true;
+    this._deactivateGoldBar();
+    if (this.scene && this.scene.gachaUI && this.scene.gachaUI.updateSynthesisAvailability) {
+        this.scene.gachaUI.updateSynthesisAvailability();
     }
 };
 

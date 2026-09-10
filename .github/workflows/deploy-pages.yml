@@ -1,0 +1,39 @@
+name: Deploy game to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare public game files
+        shell: bash
+        run: |
+          mkdir _site
+          cp index.html style.css _site/
+          cp -R js assets _site/
+          printf 'window.RTD_RUNTIME_CONFIG=Object.freeze({devToolsEnabled:false});\n' > _site/runtime-config.js
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

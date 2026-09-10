@@ -1,6 +1,7 @@
 var Game = window.Game || {};
 
 Game.DamageTracker = {
+    enabled: false,    // DPS 데이터 수집 활성화 여부 (false = 비활성)
     totalDamage: 0,
     elapsedSeconds: 0,
     towerMap: {},      // towerId -> unitData
@@ -55,6 +56,7 @@ Game.DamageTracker = {
     },
 
     registerTower: function(tower) {
+        if (!this.enabled) return;
         if (!tower || !tower.unitData) return;
         this.towerMap[tower.towerId] = tower.unitData;
 
@@ -76,6 +78,7 @@ Game.DamageTracker = {
     },
 
     recordDamage: function(origin, amount) {
+        if (!this.enabled) return;
         if (!amount || amount <= 0) return;
 
         var unitData = null;
@@ -110,6 +113,7 @@ Game.DamageTracker = {
     },
 
     recordDamageByTowerId: function(towerId, amount) {
+        if (!this.enabled) return;
         if (!amount || amount <= 0) return;
         var unitData = this.towerMap[towerId];
         if (unitData) {
@@ -120,6 +124,7 @@ Game.DamageTracker = {
     },
 
     updateTime: function(deltaMs) {
+        if (!this.enabled) return;
         this.elapsedSeconds += (deltaMs / 1000);
     },
 

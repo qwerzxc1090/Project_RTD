@@ -151,12 +151,14 @@ Game.Skills.GoldFarmSkill.prototype.execute = function(tower, target, monsters) 
         // 이전 스택이 최소 보정(1G)이었으면 → 이번 지급 완료 후 비활성화
         if (tower._goldLastStack) {
             tower.goldCurrentReward = 0;
-            if (tower._deactivateGoldBar) tower._deactivateGoldBar();
+            if (tower._completeGoldFarm) tower._completeGoldFarm();
+            else if (tower._deactivateGoldBar) tower._deactivateGoldBar();
         }
         // 정확히 0 → 즉시 비활성화
         else if (tower.goldCurrentReward <= 0) {
             tower.goldCurrentReward = 0;
-            if (tower._deactivateGoldBar) tower._deactivateGoldBar();
+            if (tower._completeGoldFarm) tower._completeGoldFarm();
+            else if (tower._deactivateGoldBar) tower._deactivateGoldBar();
         }
         // 0 초과 1 미만 (0.xxx) → 1G로 보정, 마지막 스택 플래그
         else if (tower.goldCurrentReward > 0 && tower.goldCurrentReward < 1) {

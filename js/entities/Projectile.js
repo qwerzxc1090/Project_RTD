@@ -1,5 +1,15 @@
 var Game = window.Game || {};
 
+// 단일 투사체 이미지에 적용하는 4단계 이동 프레임.
+// 별도 스프라이트 시트 없이도 방향성·발광·전진감을 유지한다.
+var PROJECTILE_IMAGE_FRAMES = [
+    { offsetX: -1.5, offsetY:  0, scale: 0.88, alpha: 0.78 },
+    { offsetX: -0.5, offsetY: -0.5, scale: 0.98, alpha: 0.92 },
+    { offsetX:  1.5, offsetY:  0, scale: 1.10, alpha: 1.00 },
+    { offsetX:  0.0, offsetY:  0.5, scale: 1.00, alpha: 0.94 }
+];
+var PROJECTILE_IMAGE_FRAME_MS = 55;
+
 // ══════════════════════════════════════════════════════
 //  Projectile — 오브젝트 풀 기반 투사체 시스템
 //  - new/destroy 대신 acquire/release 로 재사용
@@ -109,6 +119,12 @@ Game.DamageTextPool = {
 
         // 스로틀 없음 — 치명타는 희귀 이벤트이므로 항상 표시
         var label = damage.toLocaleString() + '!';
+        var digitCount = Math.abs(Math.floor(Number(damage) || 0)).toString().length;
+        var critStyle = digitCount >= 4
+            ? { fontSize: 21, color: '#FF6633', stroke: '#7A1600', strokeThickness: 5, popupScale: 1.58, flashRadius: 15 }
+            : (digitCount === 3
+                ? { fontSize: 19, color: '#FFB000', stroke: '#7B2D00', strokeThickness: 4, popupScale: 1.51, flashRadius: 13 }
+                : { fontSize: 17, color: '#FFD700', stroke: '#7B3A00', strokeThickness: 4, popupScale: 1.45, flashRadius: 12 });
 
         // ── 메인 텍스트 (골드 + 두꺼운 외곽선) ──
         var startX = x + (Math.random() * 20 - 10); // 약간 랜덤 X 분산
@@ -120,19 +136,19 @@ Game.DamageTextPool = {
             txt.setPosition(startX, startY);
             txt.setAlpha(1);
             txt.setScale(1);
-            txt.setColor('#FFD700');
-            txt.setFontSize('17px');
-            txt.setStroke('#7B3A00', 4);
+            txt.setColor(critStyle.color);
+            txt.setFontSize(critStyle.fontSize + 'px');
+            txt.setStroke(critStyle.stroke, critStyle.strokeThickness);
             txt.setActive(true);
             txt.setVisible(true);
         } else {
             txt = scene.add.text(startX, startY, label, {
-                fontSize: '17px',
+                fontSize: critStyle.fontSize + 'px',
                 fontFamily: 'Oxanium',
                 fontStyle: 'bold',
-                color: '#FFD700',
-                stroke: '#7B3A00',
-                strokeThickness: 4
+                color: critStyle.color,
+                stroke: critStyle.stroke,
+                strokeThickness: critStyle.strokeThickness
             }).setOrigin(0.5);
         }
         txt.setDepth(210);
@@ -143,8 +159,8 @@ Game.DamageTextPool = {
         // 1단계: 순간 팝업 (크게 확대)
         scene.tweens.add({
             targets: txt,
-            scaleX: 1.45,
-            scaleY: 1.45,
+            scaleX: critStyle.popupScale,
+            scaleY: critStyle.popupScale,
             duration: 108,
             ease: 'Power2',
             onComplete: function() {
@@ -170,8 +186,8 @@ Game.DamageTextPool = {
         // ── 번쩍임 이펙트 (흰 테두리 원) ──
         var flash = scene.add.graphics();
         flash.setPosition(x, y);
-        flash.lineStyle(3, 0xFFDD00, 1);
-        flash.strokeCircle(0, 0, 12);
+        flash.lineStyle(3, digitCount >= 4 ? 0xFF6633 : (digitCount === 3 ? 0xFFB000 : 0xFFDD00), 1);
+        flash.strokeCircle(0, 0, critStyle.flashRadius);
         flash.setDepth(209);
         scene.tweens.add({
             targets: flash,
@@ -325,10 +341,15 @@ Game.Projectile = function(scene, x, y, target, unitData, skill) {
     this.hitEnemies           = [];     // 이미 타격한 적 instanceId 배열
     this.isReturningToTower   = false;  // 타워로 되돌아가는 중 여부
     this.currentDamage        = 0;      // 현재 데미지 (연쇄 감소 적용)
+    this.chainDamageScale     = 1;      // 상성 적용 전 연쇄 단계별 피해 배율
+    this.chainCriticalRolled  = false;  // 치명타는 발사체당 최초 1회만 판정
 
     // 비주얼은 한 번만 생성 후 재사용
     this._visualGraphics = null;
     this._visualImage    = null;
+    this._visualDisplaySize = 8;
+    this._imageAnimationStartedAt = null;
+    this._imageAnimationFrame = -1;
     this._createVisual();
 
     this.setDepth(50);
@@ -367,11 +388,16 @@ Game.Projectile.prototype.reset = function(x, y, target, unitData, skill, origin
     this.maxBounceCount       = this.bounceCount;
     // bounceRange: 0 = 사정거리 제한 없음, 양수 = px 반경 제한
     this.bounceRange          = this.isChainLightning ? (this.skill.bounceRange || 0) : 0;
-    this.bounceDamageMultiplier = this.isChainLightning ? (this.skill.bounceDamageMultiplier || 0.85) : 1;
+    this.bounceDamageMultiplier = this.isChainLightning
+        ? (this.skill.bounceDamageMultiplier !== undefined ? this.skill.bounceDamageMultiplier : 0.85)
+        : 1;
     this.hitEnemies           = [];
     this.isReturningToTower   = false;
     this.currentDamage        = 0; // 첫 타격 시 계산
+    this.chainDamageScale     = 1;
     this.isCritForChain       = false; // 연쇄 투사체 치명타 여부 공유
+    this.chainCriticalRolled  = false;
+    this._waitingTextureKey   = null;
 
     // 비주얼 업데이트 (스킬이 달라지면)
     this._updateVisual();
@@ -383,9 +409,13 @@ Game.Projectile.prototype._createVisual = function() {
 
 Game.Projectile.prototype._updateVisual = function() {
     var displaySize = (this.skill && this.skill.displaySize) ? this.skill.displaySize : 8;
-    var imageKey    = this.skill ? (this.skill.imageKey || ('proj_' + this.skill.id)) : null;
+    var preferredImageKey = this.skill ? (this.skill.imageKey || ('proj_' + this.skill.id)) : null;
+    var defaultImageKey = this.skill ? ('proj_' + this.skill.id) : null;
+    var imageKey = preferredImageKey && this.scene.textures.exists(preferredImageKey)
+        ? preferredImageKey
+        : (defaultImageKey && this.scene.textures.exists(defaultImageKey) ? defaultImageKey : null);
 
-    if (imageKey && this.scene.textures.exists(imageKey)) {
+    if (imageKey) {
         if (this._visualGraphics) {
             this._visualGraphics.setVisible(false);
         }
@@ -397,9 +427,21 @@ Game.Projectile.prototype._updateVisual = function() {
             this._visualImage.setTexture(imageKey);
             this._visualImage.setVisible(true);
         }
+        this._visualDisplaySize = displaySize;
         this._visualImage.setDisplaySize(displaySize, displaySize);
+        this._resetImageAnimation();
         this.setSize(displaySize, displaySize);
     } else {
+        // 텍스처가 늦게 등록되어도 최초 fallback 상태에 고정되지 않도록
+        // 이미지 등록 완료 시 실제 리소스로 다시 전환한다.
+        var waitingImageKey = preferredImageKey || defaultImageKey;
+        if (waitingImageKey && this.scene.load && !this._waitingTextureKey) {
+            this._waitingTextureKey = waitingImageKey;
+            this.scene.load.once('filecomplete-image-' + waitingImageKey, function() {
+                this._waitingTextureKey = null;
+                if (this.active || this.visible) this._updateVisual();
+            }, this);
+        }
         if (this._visualImage) {
             this._visualImage.setVisible(false);
         }
@@ -414,6 +456,30 @@ Game.Projectile.prototype._updateVisual = function() {
         this._drawProjectileShape(this._visualGraphics);
         this.setSize(displaySize, displaySize);
     }
+};
+
+Game.Projectile.prototype._resetImageAnimation = function() {
+    this._imageAnimationStartedAt = null;
+    this._imageAnimationFrame = -1;
+    this._applyImageAnimationFrame(0);
+};
+
+Game.Projectile.prototype._applyImageAnimationFrame = function(frameIndex) {
+    if (!this._visualImage || !this._visualImage.visible) return;
+    var frame = PROJECTILE_IMAGE_FRAMES[frameIndex] || PROJECTILE_IMAGE_FRAMES[0];
+    var baseSize = this._visualDisplaySize || 8;
+    this._visualImage.setPosition(frame.offsetX, frame.offsetY);
+    this._visualImage.setDisplaySize(baseSize * frame.scale, baseSize * frame.scale);
+    this._visualImage.setAlpha(frame.alpha);
+    this._imageAnimationFrame = frameIndex;
+};
+
+Game.Projectile.prototype._updateImageAnimation = function(time) {
+    if (!this._visualImage || !this._visualImage.visible) return;
+    if (this._imageAnimationStartedAt === null) this._imageAnimationStartedAt = time;
+    var elapsed = Math.max(0, time - this._imageAnimationStartedAt);
+    var frameIndex = Math.floor(elapsed / PROJECTILE_IMAGE_FRAME_MS) % PROJECTILE_IMAGE_FRAMES.length;
+    if (frameIndex !== this._imageAnimationFrame) this._applyImageAnimationFrame(frameIndex);
 };
 
 Game.Projectile.prototype._drawProjectileShape = function(g) {
@@ -467,6 +533,7 @@ Game.Projectile.prototype._drawProjectileShape = function(g) {
 
 Game.Projectile.prototype.update = function(time, delta) {
     if (this.hit || !this.active) return;
+    this._updateImageAnimation(time);
 
     // ── 체인 라이트닝: 전용 업데이트 분기 ──
     if (this.isChainLightning) {
@@ -653,13 +720,22 @@ Game.Projectile.prototype._updateChainLightning = function(time, delta) {
                           && this.target.instanceId === this.targetInstanceId;
 
         if (targetIsValid) {
-            if (this.currentDamage === 0) {
+            if (!this.chainCriticalRolled) {
                 var dmgResult = Game.CombatSystem.calculateDamage(
                     { x: this.x, y: this.y, unitData: this.unitData },
                     this.target
                 );
                 this.currentDamage = dmgResult.damage;
                 this.isCritForChain = dmgResult.isCritical;
+                this.chainCriticalRolled = true;
+            } else {
+                // 감쇠 전 기본 공격력에서 현재 대상의 방어 타입 상성을 새로 계산한다.
+                this.currentDamage = Game.CombatSystem.calculateScaledDamage(
+                    this.unitData,
+                    this.target,
+                    this.chainDamageScale,
+                    this.isCritForChain
+                ).damage;
             }
             this.target.takeDamage(this.currentDamage);
             if (Game.DamageTracker) {
@@ -675,8 +751,7 @@ Game.Projectile.prototype._updateChainLightning = function(time, delta) {
             }
             Game.HitEffectPool.show(this.target.x, this.target.y, 0x00CCFF);
             this.hitEnemies.push(this.target.instanceId);
-            this.currentDamage = Math.floor(this.currentDamage * this.bounceDamageMultiplier);
-            if (this.currentDamage < 1) this.currentDamage = 1;
+            this.chainDamageScale *= this.bounceDamageMultiplier;
         }
 
         // ── bounceCount 소모 ──

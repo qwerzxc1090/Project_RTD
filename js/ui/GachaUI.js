@@ -21,13 +21,31 @@ Game.GachaUI = function(scene, x, y) {
     this.scene = scene;
     this.isAnimating = false;
     this.autoGacha = false;
+    this.autoSynthesis = false;
     this.autoGachaTimer = null;
+    this.autoSynthesisTimer = null;
     this.AUTO_GACHA_INTERVAL = 1111;  // 1500ms → 1111ms (속도 35% 증가)
+    this.AUTO_SYNTHESIS_DELAY = 3000;
 
     this._createUI();
+    // 화면 맞춤은 개발 환경의 레이아웃 점검용 도구다.
+    // 배포판에서는 플레이 UI에 노출하지 않는다.
+    if (!Game.Runtime || Game.Runtime.isDevToolsEnabled()) this._createFitScreenBtn();
+    this._createSynthesisBtn();
     this._createAutoGachaBtn();
-    this._createDevGoldBtns();
+    if (!Game.Runtime || Game.Runtime.isDevToolsEnabled()) this._createDevGoldBtns();
     scene.add.existing(this);
+    this.updateSynthesisAvailability();
+
+    // ── localStorage에서 자동 합성 상태 복원 ──
+    var savedAutoSynthesis = false;
+    try { savedAutoSynthesis = localStorage.getItem('rtd_autoSynthesis') === '1'; } catch(e) {}
+    if (savedAutoSynthesis) {
+        this.autoSynthesis = true;
+        this._setAutoSynthesisUI(true);
+        this.updateSynthesisAvailability();
+        this._scheduleAutoSynthesis();
+    }
 
     // ── localStorage에서 자동 뽑기 상태 복원 ──
     var savedAuto = false;
@@ -51,13 +69,37 @@ Game.GachaUI = function(scene, x, y) {
 Game.GachaUI.prototype = Object.create(Phaser.GameObjects.Container.prototype);
 Game.GachaUI.prototype.constructor = Game.GachaUI;
 
+// ── 뽑기·AUTO·합성 공통 레이아웃 ──
+Game.GachaUI.prototype._getActionButtonLayout = function() {
+    var width = 92;
+    var height = 50;
+    var gap = 8;
+    var synthesisWidth = width;
+    var synthesisHeight = 50;
+    return {
+        width: width,
+        height: height,
+        gap: gap,
+        synthesisWidth: synthesisWidth,
+        synthesisHeight: synthesisHeight,
+        gachaX: this.x,
+        autoX: this.x + width + gap,
+        synthesisX: this.x + (width + gap) * 2 + (synthesisWidth - width) / 2,
+        devX: this.x + (width + gap) / 2,
+        y: this.y
+    };
+};
+
 // ── 뽑기 버튼 ──
 Game.GachaUI.prototype._createUI = function() {
+    var layout = this._getActionButtonLayout();
+    var bw = layout.width;
+    var bh = layout.height;
     var btnG = this.scene.add.graphics();
     btnG.fillStyle(0x1a1a2e, 1);
-    btnG.fillRoundedRect(-60, -25, 120, 50, 8);
+    btnG.fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 8);
     btnG.lineStyle(2, 0xFFD700, 0.8);
-    btnG.strokeRoundedRect(-60, -25, 120, 50, 8);
+    btnG.strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 8);
     this.add(btnG);
     this.btnBackground = btnG;
 
@@ -71,7 +113,7 @@ Game.GachaUI.prototype._createUI = function() {
     }).setOrigin(0.5);
     this.add(this.costText);
 
-    var hitArea = new Phaser.Geom.Rectangle(-60, -25, 120, 50);
+    var hitArea = new Phaser.Geom.Rectangle(-bw / 2, -bh / 2, bw, bh);
     this.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     var self = this;
@@ -86,11 +128,195 @@ Game.GachaUI.prototype._createUI = function() {
     this.on('pointerdown', function() { self._onGachaClick(); });
 };
 
+// ── 게임 화면 맞춤 버튼 ──
+// 브라우저 창 안에서 16:9 게임 영역이 최대 크기로 보이도록 컨테이너를 조정한다.
+Game.GachaUI.prototype._createFitScreenBtn = function() {
+    var self = this;
+    var bx = this.x;
+    var by = this.y - 72;
+    var bw = 120, bh = 24;
+
+    this.fitScreenBg = this.scene.add.graphics().setDepth(96);
+    this.fitScreenBg.fillStyle(0x10182a, 1);
+    this.fitScreenBg.fillRoundedRect(bx - bw / 2, by - bh / 2, bw, bh, 6);
+    this.fitScreenBg.lineStyle(1.5, 0x4488FF, 0.9);
+    this.fitScreenBg.strokeRoundedRect(bx - bw / 2, by - bh / 2, bw, bh, 6);
+
+    this.fitScreenText = this.scene.add.text(bx, by, '화면 맞춤', {
+        fontSize: '10px', fontFamily: 'Oxanium', color: '#88BBFF', align: 'center'
+    }).setOrigin(0.5).setDepth(97);
+
+    this.fitScreenHitZone = this.scene.add.rectangle(bx, by, bw, bh)
+        .setInteractive({ useHandCursor: true }).setDepth(98).setAlpha(0.001);
+    this.fitScreenHitZone.on('pointerover', function() {
+        self.fitScreenText.setColor('#FFFFFF');
+    });
+    this.fitScreenHitZone.on('pointerout', function() {
+        self.fitScreenText.setColor('#88BBFF');
+    });
+    this.fitScreenHitZone.on('pointerdown', function() {
+        var game = self.scene.game;
+        var container = document.getElementById('game-container');
+        if (!container) return;
+
+        var aspect = Game.Config.WIDTH / Game.Config.HEIGHT;
+        var width = window.innerWidth;
+        var height = window.innerHeight;
+        if (width / height > aspect) width = height * aspect;
+        else height = width / aspect;
+
+        container.style.width = Math.floor(width) + 'px';
+        container.style.height = Math.floor(height) + 'px';
+        if (game && game.scale && game.scale.refresh) game.scale.refresh();
+        self.fitScreenText.setText('맞춤 완료');
+        self.scene.time.delayedCall(900, function() {
+            if (self.fitScreenText && self.fitScreenText.active) self.fitScreenText.setText('화면 맞춤');
+        });
+    });
+};
+
+// ── 합성 UI ──
+Game.GachaUI.prototype._createSynthesisBtn = function() {
+    var self = this;
+    var layout = this._getActionButtonLayout();
+    var sx = layout.synthesisX;
+    var sy = layout.y;
+    var bw = layout.synthesisWidth;
+    var bh = layout.synthesisHeight;
+
+    this.synthesisBtnBg = this.scene.add.graphics().setDepth(96);
+    this._drawSynthesisBtn(false, false);
+
+    // 하단 왼쪽: 기능명과 ON/OFF 상태를 두 줄로 표시한다.
+    this.synthesisLabel = this.scene.add.text(sx - 23, sy + 8, '합성\nOFF', {
+        fontSize: '9px', fontFamily: 'Oxanium', color: '#777777',
+        align: 'center', lineSpacing: -1
+    }).setOrigin(0.5).setDepth(96);
+
+    var resultTiers = [
+        { label: '레어', color: '#66CC66' },
+        { label: '고대', color: '#A86BFF' },
+        { label: '유물', color: '#FFB04A' }
+    ];
+    this.synthesisTierTexts = [];
+    for (var i = 0; i < resultTiers.length; i++) {
+        var tier = resultTiers[i];
+        this.synthesisTierTexts.push(this.scene.add.text(sx - 28 + i * 28, sy - 15, tier.label, {
+            fontSize: '10px', fontFamily: 'Oxanium', color: '#666666', align: 'center'
+        }).setOrigin(0.5).setDepth(96));
+    }
+
+    // 하단 오른쪽: 합성 재료 수를 두 줄로 고정 표시한다.
+    this.synthesisStateText = this.scene.add.text(sx + 23, sy + 8, '일반\n0 / 3', {
+        fontSize: '9px', fontFamily: 'Oxanium', color: '#666666',
+        align: 'center', lineSpacing: -1
+    }).setOrigin(0.5).setDepth(96);
+
+    this.synthesisHitZone = this.scene.add.rectangle(sx, sy, bw, bh)
+        .setInteractive({ useHandCursor: true }).setDepth(97).setAlpha(0.001);
+    this.synthesisHitZone.on('pointerover', function() {
+        if (!self.autoSynthesis) self._drawSynthesisBtn(false, true);
+    });
+    this.synthesisHitZone.on('pointerout', function() {
+        if (!self.autoSynthesis) self._drawSynthesisBtn(false, false);
+    });
+    this.synthesisHitZone.on('pointerdown', function() { self._toggleAutoSynthesis(); });
+};
+
+Game.GachaUI.prototype._canSynthesize = function() {
+    return this.scene && this.scene.getSynthesisNormalTowerCount &&
+        this.scene.getSynthesisNormalTowerCount() >= 3;
+};
+
+Game.GachaUI.prototype._drawSynthesisBtn = function(active, hover) {
+    if (!this.synthesisBtnBg) return;
+    var layout = this._getActionButtonLayout();
+    var sx = layout.synthesisX, sy = layout.y;
+    var bw = layout.synthesisWidth, bh = layout.synthesisHeight;
+    this.synthesisBtnBg.clear();
+    this.synthesisBtnBg.fillStyle(active ? 0x0A2A0A : (hover ? 0x24242B : 0x17171C), 1);
+    this.synthesisBtnBg.fillRoundedRect(sx - bw / 2, sy - bh / 2, bw, bh, 7);
+    this.synthesisBtnBg.lineStyle(active ? 1.5 : 1, active ? 0x44FF44 : (hover ? 0x777777 : 0x55555F), active ? 1 : 0.8);
+    this.synthesisBtnBg.strokeRoundedRect(sx - bw / 2, sy - bh / 2, bw, bh, 7);
+};
+
+Game.GachaUI.prototype._setAutoSynthesisUI = function(active) {
+    this._drawSynthesisBtn(active, false);
+    if (this.synthesisLabel) {
+        this.synthesisLabel.setText('합성\n' + (active ? 'ON' : 'OFF'));
+        this.synthesisLabel.setColor(active ? '#44FF44' : '#777777');
+    }
+    if (this.synthesisTierTexts) {
+        var colors = ['#66CC66', '#A86BFF', '#FFB04A'];
+        this.synthesisTierTexts.forEach(function(tierText, index) {
+            tierText.setColor(active ? colors[index] : '#666666');
+        });
+    }
+};
+
+Game.GachaUI.prototype.updateSynthesisAvailability = function() {
+    if (!this.synthesisStateText) return;
+    var count = this.scene && this.scene.getSynthesisNormalTowerCount
+        ? this.scene.getSynthesisNormalTowerCount() : 0;
+    if (!this.autoSynthesis) {
+        this.synthesisStateText.setText('일반\n' + count + ' / 3').setColor('#666666');
+        return;
+    }
+    if (this.autoSynthesisTimer) {
+        this.synthesisStateText.setText('일반\n' + count + ' / 3').setColor('#66FF88');
+        return;
+    }
+    if (count >= 3) {
+        this.synthesisStateText.setText('일반\n' + count + ' / 3').setColor('#66FF88');
+        if (!this.isAnimating) this._scheduleAutoSynthesis();
+        return;
+    }
+    this.synthesisStateText.setText('일반\n' + count + ' / 3').setColor('#A0E6AF');
+};
+
+Game.GachaUI.prototype._toggleAutoSynthesis = function() {
+    this.autoSynthesis = !this.autoSynthesis;
+    try { localStorage.setItem('rtd_autoSynthesis', this.autoSynthesis ? '1' : '0'); } catch(e) {}
+    this._setAutoSynthesisUI(this.autoSynthesis);
+    if (this.autoSynthesis) {
+        this.updateSynthesisAvailability();
+        this._scheduleAutoSynthesis();
+    } else {
+        this._cancelAutoSynthesis();
+        this.updateSynthesisAvailability();
+    }
+};
+
+Game.GachaUI.prototype._cancelAutoSynthesis = function() {
+    if (this.autoSynthesisTimer) {
+        this.autoSynthesisTimer.remove();
+        this.autoSynthesisTimer = null;
+    }
+};
+
+Game.GachaUI.prototype._scheduleAutoSynthesis = function() {
+    var self = this;
+    if (!this.autoSynthesis || this.isAnimating || !this._canSynthesize() || this.autoSynthesisTimer) return false;
+    this.synthesisStateText.setText('일반\n' +
+        (this.scene.getSynthesisNormalTowerCount ? this.scene.getSynthesisNormalTowerCount() : 3) +
+        ' / 3').setColor('#66FF88');
+    this.autoSynthesisTimer = this.scene.time.delayedCall(this.AUTO_SYNTHESIS_DELAY, function() {
+        self.autoSynthesisTimer = null;
+        if (!self.autoSynthesis || self.isAnimating || !self._canSynthesize()) {
+            self.updateSynthesisAvailability();
+            return;
+        }
+        self._performAutoSynthesis();
+    });
+    return true;
+};
+
 // ── AUTO 버튼 (씬 직접 추가) ──
 Game.GachaUI.prototype._createAutoGachaBtn = function() {
     var self = this;
-    var ax = this.x + 148, ay = this.y;
-    var bw = 90, bh = 50;
+    var layout = this._getActionButtonLayout();
+    var ax = layout.autoX, ay = layout.y;
+    var bw = layout.width, bh = layout.height;
 
     this.autoBtnBg = this.scene.add.graphics().setDepth(96);
     this._drawAutoBtn(false);
@@ -122,17 +348,17 @@ Game.GachaUI.prototype._createAutoGachaBtn = function() {
 // ── 개발자용 골드 추가 버튼 ──
 Game.GachaUI.prototype._createDevGoldBtns = function() {
     var self = this;
-    var ax   = this.x + 148;
-    var ay   = this.y;
+    var timeCfg = Game.UILayout.get('game', 'hud.time');
+    var ax = timeCfg.x;
 
     var amounts = [500, 1000, 10000];
-    var bw = 52, bh = 20, gap = 3;
+    var bw = 50, bh = 18, gap = 4;
     var totalW  = amounts.length * bw + (amounts.length - 1) * gap;
     var startX  = ax - totalW / 2;
-    var btnY    = ay - 38;   // AUTO 버튼(50px) 위
+    var btnY    = 58;        // 게임 시간 표시 바로 아래
 
-    // DEV 라벨
-    this._devLabel = this.scene.add.text(ax, btnY - 14, '[ DEV ]', {
+    // 게임 시간 아래에 가로 정렬한 DEV 골드 패널
+    this._devLabel = this.scene.add.text(ax, 43, '[ DEV GOLD ]', {
         fontSize: '7px', fontFamily: 'Oxanium', color: '#FF6600', alpha: 0.7
     }).setOrigin(0.5).setDepth(96);
 
@@ -187,7 +413,8 @@ Game.GachaUI.prototype._createDevGoldBtns = function() {
 };
 
 Game.GachaUI.prototype._drawAutoBtn = function(active, hover) {
-    var ax = this.x + 148, ay = this.y, bw = 90, bh = 50;
+    var layout = this._getActionButtonLayout();
+    var ax = layout.autoX, ay = layout.y, bw = layout.width, bh = layout.height;
     this.autoBtnBg.clear();
     if (active) {
         this.autoBtnBg.fillStyle(0x0a2a0a, 1);
@@ -228,13 +455,18 @@ Game.GachaUI.prototype._startAutoGacha = function() {
         delay: this.AUTO_GACHA_INTERVAL,
         callback: function() {
             if (!self.autoGacha) return;
+            if (self.autoSynthesis && self._canSynthesize()) {
+                self._scheduleAutoSynthesis();
+                return;
+            }
             if (Game.GachaSystem.canAfford() && !self.isAnimating) self._onGachaClick();
             else if (!Game.GachaSystem.canAfford()) self.autoDots.setText('💰');
         },
         loop: true
     });
 
-    var ax = this.x + 148, ay = this.y;
+    var layout = this._getActionButtonLayout();
+    var ax = layout.autoX, ay = layout.y;
     var flash = this.scene.add.graphics();
     flash.fillStyle(0x44FF44, 0.35);
     flash.fillCircle(ax, ay, 45);
@@ -263,7 +495,20 @@ Game.GachaUI.prototype._onGachaClick = function() {
     }
 };
 
-Game.GachaUI.prototype._playGachaAnimation = function(unit) {
+Game.GachaUI.prototype._performAutoSynthesis = function() {
+    if (this.isAnimating || !this._canSynthesize()) return false;
+    var unit = Game.GachaSystem.rollSynthesis();
+    if (!unit) return false;
+    this.isAnimating = true;
+    if (!this.scene.consumeNormalTowersForSynthesis()) {
+        this.isAnimating = false;
+        return false;
+    }
+    this._playGachaAnimation(unit, 'synthesis');
+    return true;
+};
+
+Game.GachaUI.prototype._playGachaAnimation = function(unit, source) {
     var self = this;
     this.isAnimating = true;
 
@@ -288,9 +533,9 @@ Game.GachaUI.prototype._playGachaAnimation = function(unit) {
         this._showSpecialAcquireUI(unit, tierColor, tierColorStr, tierName);
     } else {
         // 일반 결과 텍스트
-        var holdTime = this.autoGacha ? 250 : 1000;
+        var holdTime = (this.autoGacha || (source === 'synthesis' && this.autoSynthesis)) ? 250 : 1000;
         var resultText = this.scene.add.text(this.x, this.y - 60,
-            '[' + tierName + '] ' + unit.name, {
+            (source === 'synthesis' ? '[합성 · ' : '[') + tierName + '] ' + unit.name, {
             fontSize: '12px', fontFamily: 'Oxanium',
             color: tierColorStr, stroke: '#000000', strokeThickness: 3, align: 'center'
         }).setOrigin(0.5).setAlpha(0).setDepth(200);
@@ -300,7 +545,11 @@ Game.GachaUI.prototype._playGachaAnimation = function(unit) {
             onComplete: function() {
                 self.scene.tweens.add({
                     targets: resultText, alpha: 0, y: resultText.y - 20, duration: 200,
-                    onComplete: function() { resultText.destroy(); self.isAnimating = false; }
+                    onComplete: function() {
+                        resultText.destroy();
+                        self.isAnimating = false;
+                        self._scheduleAutoSynthesis();
+                    }
                 });
             }
         });
@@ -311,10 +560,10 @@ Game.GachaUI.prototype._playGachaAnimation = function(unit) {
     else if (unit.tier === 'epic')  this._legendaryEffect(tierColor, 14);
     else if (unit.tier === 'legend') this._legendaryEffect(tierColor, 12);
 
-    this.scene.events.emit('gachaResult', unit);
+    this.scene.events.emit(source === 'synthesis' ? 'synthesisResult' : 'gachaResult', unit);
 
     // ── AUTO ON일 때 뽑기 성공 깜빡임 ──
-    if (this.autoGacha && this.autoDots) {
+    if (source !== 'synthesis' && this.autoGacha && this.autoDots) {
         var tierColorStr2 = '#' + (tierColor).toString(16).padStart(6, '0');
         this.autoDots.setText('✦').setColor(tierColorStr2).setAlpha(1).setScale(1);
         if (this._dotsFlashTween) this._dotsFlashTween.stop();
@@ -437,6 +686,7 @@ Game.GachaUI.prototype._showSpecialAcquireUI = function(unit, tierColor, tierCol
                 allObjs.forEach(function(o) { o.destroy(); });
                 closeZone.destroy();
                 self.isAnimating = false;
+                self._scheduleAutoSynthesis();
             }
         });
     });
@@ -514,6 +764,18 @@ Game.GachaUI.prototype.updateAffordability = function() {
 
 Game.GachaUI.prototype.destroy = function() {
     this._stopAutoGacha();
+    this._cancelAutoSynthesis();
+    if (this.fitScreenBg)   this.fitScreenBg.destroy();
+    if (this.fitScreenText) this.fitScreenText.destroy();
+    if (this.fitScreenHitZone) this.fitScreenHitZone.destroy();
+    if (this.synthesisBtnBg) this.synthesisBtnBg.destroy();
+    if (this.synthesisLabel) this.synthesisLabel.destroy();
+    if (this.synthesisModeText) this.synthesisModeText.destroy();
+    if (this.synthesisStateText) this.synthesisStateText.destroy();
+    if (this.synthesisTierTexts) {
+        this.synthesisTierTexts.forEach(function(tierText) { tierText.destroy(); });
+    }
+    if (this.synthesisHitZone) this.synthesisHitZone.destroy();
     if (this.autoBtnBg)    this.autoBtnBg.destroy();
     if (this.autoLabel)    this.autoLabel.destroy();
     if (this.autoStateText) this.autoStateText.destroy();

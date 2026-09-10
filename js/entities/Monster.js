@@ -66,6 +66,7 @@ Game.Monster.prototype.reset = function(x, y, data) {
     this.isBoss = data.isBoss || false;
     this.imagePath = data.imagePath || '';       // 이미지 리소스 경로
     this._monsterDataId = data.monsterId || 0;  // BootScene 키 'monster_<id>' 조회용
+    this.waveRound = data.waveRound;             // 생성된 스테이지(타임어택 처치 집계용)
     
     this.waypoints = data.waypoints || [];
     this.currentWaypointIndex = 0;
@@ -287,13 +288,16 @@ Game.Monster.prototype._updateHpBar = function() {
     if (!this.poisons) return;
     
     // 총 예측 독 피해량 계산
-    // Σ( floor(remaining / tickRate) * floor(baseDamage * ratio) * stacks )
+    // Σ( floor(remaining / tickRate) * floor(baseDamage * ratio * 상성) * stacks )
     var totalPoisonDmg = 0;
     var keys = Object.keys(this.poisons);
     for (var i = 0; i < keys.length; i++) {
         var p = this.poisons[keys[i]];
         var ticksLeft = Math.floor(p.remaining / p.tickRate);  // 남은 틱 횟수
-        var tickDmg = Math.floor(p.baseDamage * p.ratio);      // 1틱당 기본 피해
+        var effectiveness = Game.CombatSystem && Game.CombatSystem.getEffectiveness
+            ? Game.CombatSystem.getEffectiveness(p.attackType, this.monsterType)
+            : 1;
+        var tickDmg = Math.floor(p.baseDamage * p.ratio * effectiveness);
         totalPoisonDmg += ticksLeft * tickDmg * p.stacks;
     }
     
@@ -393,6 +397,7 @@ Game.Monster.prototype.applyPoison = function(towerId, unitData, skillData) {
             remaining:  duration,    // 남은 지속시간 (ms)
             tickAccum:  0,           // 틱 누적 시간 (ms)
             baseDamage: unitData.damage,  // 타워 기본 공격력
+            attackType: unitData.attackType, // 지속 피해에도 공격·방어 타입 상성 적용
             tickRate:   tickRate,    // 틱 주기 (ms)
             maxStacks:  maxStacks,   // 최대 중첩
             duration:   duration,    // 전체 지속시간 (리셋 기준)
@@ -438,8 +443,11 @@ Game.Monster.prototype._updatePoison = function(delta) {
         
         // 틱 주기마다 데미지 적용
         while (p.tickAccum >= p.tickRate) {
-            // 1 틱 데미지 = floor(기본공격력 * 독비율) * 현재 중첩수
-            var tickDmg = Math.floor(p.baseDamage * p.ratio) * p.stacks;
+            // 직접 공격과 동일한 공격 타입·방어 타입 상성을 지속 피해에도 적용한다.
+            var effectiveness = Game.CombatSystem && Game.CombatSystem.getEffectiveness
+                ? Game.CombatSystem.getEffectiveness(p.attackType, this.monsterType)
+                : 1;
+            var tickDmg = Math.floor(p.baseDamage * p.ratio * effectiveness) * p.stacks;
             totalTickDamage += tickDmg;
             if (Game.DamageTracker) {
                 Game.DamageTracker.recordDamageByTowerId(towerId, tickDmg);

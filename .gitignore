@@ -23,3 +23,9 @@ npm-debug.log*
 # Build output
 dist/
 build/
+
+# Runtime simulation data
+calculation-runs.json
+calculation-runs.json.tmp
+simulation-live-report.json
+simulation-live-report.json.tmp

@@ -17,18 +17,18 @@ Game.EconomySystem = {
     },
     
     getGoldRaw: function() {
-        return this._gold;  // 내부 float 값 (1자리 소수)
+        return this._gold;  // 내부 실제 누적값 (화면 표시만 정수)
     },
     
     addGold: function(amount) {
-        // 내부는 소수점 1자리까지 누적, 외부 표시/사용은 정수
-        this._gold = Math.round((this._gold + amount) * 10) / 10;
+        // 실제 골드값은 반올림하지 않고 누적하며, 외부 표시만 정수로 내림
+        this._gold += Number(amount) || 0;
         if (this._onGoldChange) this._onGoldChange(Math.floor(this._gold));
     },
     
     spendGold: function(amount) {
         if (Math.floor(this._gold) < amount) return false;
-        this._gold = Math.round((this._gold - amount) * 10) / 10;
+        this._gold -= amount;
         if (this._onGoldChange) this._onGoldChange(Math.floor(this._gold));
         return true;
     },

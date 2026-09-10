@@ -1,24 +1,29 @@
 var Game = window.Game || {};
 
 Game.CombatSystem = {
-    calculateDamage: function(tower, monster) {
-        var baseDamage = tower.unitData.damage;
-        var attackType = tower.unitData.attackType;
-        var monsterType = monster.monsterType; // 'small','large','general','boss','boss_normal','boss_large','boss_small'
-        
-        var effectiveness;
+    getEffectiveness: function(attackType, monsterType) {
         if (monsterType === 'boss_normal' || monsterType === 'boss_large' || monsterType === 'boss_small') {
-            // ── 보스 전용 방어 테이블 조회 (BOSS_EFFECTIVENESS) ──
-            var bossTable = Game.Config.BOSS_EFFECTIVENESS[attackType];
-            effectiveness = bossTable ? (bossTable[monsterType] !== undefined ? bossTable[monsterType] : 0.80) : 0.80;
-        } else {
-            // ── 일반 몬스터 방어 테이블 조회 ──
-            var monsterSize = monsterType;
-            if (monsterSize === 'boss') monsterSize = 'large'; // 레거시 boss → large 폴백
-            var typeTable = Game.Config.TYPE_EFFECTIVENESS[attackType];
-            effectiveness = typeTable ? (typeTable[monsterSize] !== undefined ? typeTable[monsterSize] : 1.0) : 1.0;
+            var bossTables = Game.Config.BOSS_EFFECTIVENESS || {};
+            var bossTable = bossTables[attackType];
+            return bossTable ? (bossTable[monsterType] !== undefined ? bossTable[monsterType] : 0.80) : 0.80;
         }
-        
+
+        var monsterSize = monsterType === 'boss' ? 'large' : monsterType;
+        var typeTables = Game.Config.TYPE_EFFECTIVENESS || {};
+        var typeTable = typeTables[attackType];
+        return typeTable ? (typeTable[monsterSize] !== undefined ? typeTable[monsterSize] : 1.0) : 1.0;
+    },
+
+    calculateScaledDamage: function(unitData, monster, damageScale, isCritical) {
+        var effectiveness = this.getEffectiveness(unitData.attackType, monster.monsterType);
+        var finalDamage = Math.floor(Number(unitData.damage || 0) * damageScale * effectiveness);
+        if (isCritical) {
+            finalDamage = Math.floor(finalDamage * (1 + (Game.Config.CRITICAL_DAMAGE_RATIO || 0.5)));
+        }
+        return { damage: Math.max(1, finalDamage), effectiveness: effectiveness };
+    },
+
+    calculateDamage: function(tower, monster) {
         var isCritical = false;
         // ── 스킬 카테고리 기반 치명타 비활성화 ──
         // category === 'duration' (지속 피해 계열: POISON_DOT 등)인 스킬은 치명타 발동 안 함
@@ -32,12 +37,12 @@ Game.CombatSystem = {
             }
         }
 
-        var finalDamage = Math.floor(baseDamage * effectiveness);
-        if (isCritical) {
-            finalDamage = Math.floor(finalDamage * (1 + (Game.Config.CRITICAL_DAMAGE_RATIO || 0.5)));
-        }
-
-        return { damage: finalDamage, isCritical: isCritical, effectiveness: effectiveness };
+        var scaledResult = this.calculateScaledDamage(tower.unitData, monster, 1, isCritical);
+        return {
+            damage: scaledResult.damage,
+            isCritical: isCritical,
+            effectiveness: scaledResult.effectiveness
+        };
     },
     
     findTarget: function(tower, monsters) {
@@ -79,15 +84,7 @@ Game.CombatSystem = {
     },
     
     getEffectivenessText: function(attackType, monsterType) {
-        var eff;
-        if (monsterType === 'boss_normal' || monsterType === 'boss_large' || monsterType === 'boss_small') {
-            var bossTable = Game.Config.BOSS_EFFECTIVENESS[attackType];
-            eff = bossTable ? (bossTable[monsterType] !== undefined ? bossTable[monsterType] : 0.80) : 0.80;
-        } else {
-            var size = monsterType === 'boss' ? 'large' : monsterType;
-            var tbl = Game.Config.TYPE_EFFECTIVENESS[attackType];
-            eff = tbl ? (tbl[size] !== undefined ? tbl[size] : 1.0) : 1.0;
-        }
+        var eff = this.getEffectiveness(attackType, monsterType);
         if (eff > 1.0) return '효과적!';
         if (eff < 1.0) return '비효과적...';
         return '';

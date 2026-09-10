@@ -1,5 +1,17 @@
 var Game = window.Game || {};
 
+Game.Runtime = Game.Runtime || {};
+Game.Runtime.devToolsEnabled = !window.RTD_RUNTIME_CONFIG ||
+    window.RTD_RUNTIME_CONFIG.devToolsEnabled === true;
+Game.Runtime.isDevToolsEnabled = function() {
+    return this.devToolsEnabled === true;
+};
+Game.Runtime.getSpeedOptions = function() {
+    // 배포판은 실제 플레이에 필요한 1~3배속만 제공한다. 개발판의
+    // 저속/고속 옵션은 밸런스·시뮬레이션 점검을 위해 그대로 유지한다.
+    return this.isDevToolsEnabled() ? [0.5, 1, 2, 3, 4, 5, 6] : [1, 2, 3];
+};
+
 Game.Config = {
     // Display
     WIDTH: 1280,
@@ -42,10 +54,16 @@ Game.Config = {
     TOWER_PLACEMENT: {
         SLOT_SIZE: 34,      // 12×12 그리드 기준 (spacing=36, margin=4)
         OFFSET: 30,
+        // 사거리별 최적 커버리지 예약 슬롯을 계산하는 기준값이다.
+        MID_RANGE_MIN: 150,
+        CORNER_MIN_RANGE: 180,
+        // 단순 커버리지 배치 시 중거리 타워용으로 남겨둘 최적 슬롯 수
+        MID_RANGE_RESERVED_SLOT_COUNT: 4,
+        CENTER_OVER_BELOW_COVERAGE_RATIO: 0.95,
     },
     
     // Economy
-    INITIAL_GOLD: 1000,
+    INITIAL_GOLD: 500,
     GACHA_COST: 100,
     ROUND_BONUS_MULTIPLIER: 0,  // clearGoldBonus로 대체 — 비활성화
     
@@ -54,9 +72,12 @@ Game.Config = {
     MAX_MONSTERS: 50,       // Game over if this many monsters on field
     
     // Rounds
-    TOTAL_ROUNDS: 50,
+    TOTAL_ROUNDS: 52,
     BOSS_INTERVAL: 5,
     SPAWN_INTERVAL: 2806,      // ms between monster spawns (100% 증가)
+    NORMAL_SPAWN_INTERVAL_MULTIPLIER: 1.25, // 일반 몬스터 스폰 간격 25% 증가
+    MONSTER_HP_ROUND_RATE: 0.0115, // 라운드당 몬스터 HP 배율 1.15%
+    GOLD_ROUND_RATE: 0.005,        // 라운드당 골드 획득 배율 0.5%
 
     // 라운드 사이 시작 딜레이 (ms)
     BETWEEN_ROUND_DELAY:            1000,   // 일반 → 일반: 1초
@@ -66,20 +87,27 @@ Game.Config = {
     // Combat
     CRITICAL_DAMAGE_RATIO: 0.5,
     
-    // Gacha weights (9등급) — 정수 가중치 방식 (5자리, ×100000 기준)
-    // 합계 99999 / 100000 = 100%에 근접. 태초 19/99999 ≈ 0.019% 정확 표현
+    // Gacha weights (9등급) — 정수 가중치 방식 (5자리, 합계 100000 기준)
     // 등급 제외 시 해당 값을 0으로 설정하면 자동 비례 재분배됨
     GACHA_RATES: {
-        normal:     50000,  // 일반   50.000%  (50000/99999)
-        rare:       33100,  // 레어   33.100%  (33100/99999)
-        ancient:    10200,  // 고대   10.200%  (10200/99999)
-        relic:       5100,  // 유물    5.100%  ( 5100/99999)
-        saga:          800,  // 서사    0.800%  (  800/99999)
-        legend:        500,  // 전설    0.500%  (  500/99999)
-        epic:          200,  // 에픽    0.200%  (  200/99999)
-        myth:           80,  // 신화    0.080%  (   80/99999)
-        primordial:     19   // 태초    0.019%  (   19/99999)
-        // 합계: 99999
+        normal:     50001,  // 일반   50.001%
+        rare:       33100,  // 레어   33.100%
+        ancient:    10200,  // 고대   10.200%
+        relic:       5100,  // 유물    5.100%
+        saga:          800, // 서사    0.800%
+        legend:        500, // 전설    0.500%
+        epic:          200, // 에픽    0.200%
+        myth:           80, // 신화    0.080%
+        primordial:     19  // 태초    0.019%
+        // 합계: 100000
+    },
+
+    // 합성 가중치 — 일반 타워 3개 소모, 기대 DPS는 재료 합계의 95%
+    // 레어 57.512% / 고대 26.154% / 유물 16.334% (합계 100000)
+    SYNTHESIS_RATES: {
+        rare:    57512,
+        ancient: 26154,
+        relic:   16334
     },
     
     // 이 등급 이상이면 특별 알림 표시 (전설 ~ 태초)
@@ -190,7 +218,11 @@ Game.Config = {
 
         // 단순 숫자 설정
         var simpleKeys = ['INITIAL_GOLD','GACHA_COST','ROUND_BONUS_MULTIPLIER',
-                          'INITIAL_LIVES','MAX_MONSTERS','TOTAL_ROUNDS','SPAWN_INTERVAL', 'CRITICAL_DAMAGE_RATIO'];
+                          'INITIAL_LIVES','MAX_MONSTERS','TOTAL_ROUNDS','SPAWN_INTERVAL',
+                          'NORMAL_SPAWN_INTERVAL_MULTIPLIER',
+                          'MONSTER_HP_ROUND_RATE','GOLD_ROUND_RATE',
+                          'CRITICAL_DAMAGE_RATIO','BETWEEN_ROUND_DELAY',
+                          'BETWEEN_ROUND_DELAY_BOSS_START','BETWEEN_ROUND_DELAY_BOSS_END'];
         for (var i = 0; i < simpleKeys.length; i++) {
             var k = simpleKeys[i];
             if (ov[k] !== undefined) Game.Config[k] = ov[k];
@@ -204,18 +236,38 @@ Game.Config = {
                     Game.Config.GACHA_RATES[tiers[t]] = ov.GACHA_RATES[tiers[t]];
                 }
             }
+            // 이전 기본값(합계 99999)을 100000 기준으로 자동 보정한다.
+            var gachaTotal = 0;
+            for (var gt = 0; gt < tiers.length; gt++) gachaTotal += Game.Config.GACHA_RATES[tiers[gt]] || 0;
+            if (gachaTotal === 99999 && Game.Config.GACHA_RATES.normal === 50000) {
+                Game.Config.GACHA_RATES.normal = 50001;
+            }
         }
 
         // 타입 상성
-        if (ov.TYPE_EFFECTIVENESS) {
+        var effectivenessOverride = ov.TYPE_EFFECTIVENESS || ov.TYPE_AFFINITY;
+        if (effectivenessOverride) {
             var types = Object.keys(Game.Config.TYPE_EFFECTIVENESS);
             for (var j = 0; j < types.length; j++) {
-                if (ov.TYPE_EFFECTIVENESS[types[j]]) {
-                    Object.assign(Game.Config.TYPE_EFFECTIVENESS[types[j]], ov.TYPE_EFFECTIVENESS[types[j]]);
+                if (effectivenessOverride[types[j]]) {
+                    Object.assign(Game.Config.TYPE_EFFECTIVENESS[types[j]], effectivenessOverride[types[j]]);
                 }
             }
         }
-    } catch(e) {}
+
+        // 합성 확률
+        if (ov.SYNTHESIS_RATES) {
+            var synthesisTiers = Object.keys(Game.Config.SYNTHESIS_RATES);
+            for (var st = 0; st < synthesisTiers.length; st++) {
+                var synthesisTier = synthesisTiers[st];
+                if (ov.SYNTHESIS_RATES[synthesisTier] !== undefined) {
+                    Game.Config.SYNTHESIS_RATES[synthesisTier] = ov.SYNTHESIS_RATES[synthesisTier];
+                }
+            }
+        }
+    } catch(e) {
+        console.warn('[Config] localStorage override load failed:', e);
+    }
 })();
 
 window.Game = Game;

@@ -1,4 +1,9 @@
 var Game = window.Game || {};
+var PROJECTILE_ASSET_VERSION = '1789006000';
+
+function versionedAssetPath(path) {
+    return path + (path.indexOf('?') === -1 ? '?' : '&') + 'v=' + PROJECTILE_ASSET_VERSION;
+}
 
 Game.BootScene = new Phaser.Class({
     Extends: Phaser.Scene,
@@ -19,7 +24,7 @@ Game.BootScene = new Phaser.Class({
         });
 
         // ── 데이터 프리로드 (JSON) ──
-        this.load.json('stats', 'assets/data/stats.json');
+        this.load.json('stats', versionedAssetPath('assets/data/stats.json'));
 
         this.load.once('filecomplete-json-stats', function(key, type, data) {
             var stats = data;
@@ -33,7 +38,7 @@ Game.BootScene = new Phaser.Class({
                             path = 'assets/Art/projectiles/' + path;
                         }
                         var imgKey = sk.imageKey || ('proj_' + sk.id);
-                        self.load.image(imgKey, path);
+                        self.load.image(imgKey, versionedAssetPath(path));
                     }
                 }
             }
@@ -78,23 +83,36 @@ Game.BootScene = new Phaser.Class({
         }
 
         // ── SIM 자동 재시작(게임오버 후 리로드)이면 메뉴 건너뛰고 GameScene 직행 ──
+        // sessionStorage는 창(탭)별로 분리되어 다른 시뮬레이션 창과 충돌하지 않는다.
         var simAutoRestart = false;
+        var simRunActive = false;
+        var devModeEnabled = false;
+        var dpsModeEnabled = false;
+        var devToolsEnabled = !Game.Runtime || Game.Runtime.isDevToolsEnabled();
+        var simInstanceId = null;
         try {
-            simAutoRestart = localStorage.getItem('rtd_simAutoRestart') === '1';
-            localStorage.removeItem('rtd_simAutoRestart');
+            simInstanceId = sessionStorage.getItem('rtd_simInstanceId');
+            if (!simInstanceId) {
+                simInstanceId = 'tab_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
+                sessionStorage.setItem('rtd_simInstanceId', simInstanceId);
+            }
+            var autoRestartKey = 'rtd_simAutoRestart_' + simInstanceId;
+            var runActiveKey = 'rtd_simRunActive_' + simInstanceId;
+            simAutoRestart = sessionStorage.getItem(autoRestartKey) === '1';
+            simRunActive = sessionStorage.getItem(runActiveKey) === '1';
+            sessionStorage.removeItem(autoRestartKey);
+            devModeEnabled = localStorage.getItem('rtd_devMode') === '1';
+            dpsModeEnabled = localStorage.getItem('rtd_dpsMode') === '1';
         } catch(e) {}
 
-        // 멀티 시뮬레이션(?sim=X)의 자동 재시작도 동일 처리
-        var urlParams = new URLSearchParams(window.location.search);
-        var simId = urlParams.get('sim');
-        if (simId) {
-            try {
-                simAutoRestart = localStorage.getItem('rtd_simAutoRestart_' + simId) === '1';
-                localStorage.removeItem('rtd_simAutoRestart_' + simId);
-            } catch(e) {}
+        if (!devToolsEnabled) {
+            devModeEnabled = false;
+            dpsModeEnabled = false;
         }
 
-        if (simAutoRestart) {
+        // 게임오버 직후뿐 아니라 브라우저의 탭 폐기·복원 등 예기치 않은 재로드 후에도
+        // 실행 중이던 DEV 시뮬레이션을 계속한다. DPS 모드가 켜졌다면 DEV 복귀를 막는다.
+        if ((simAutoRestart || simRunActive) && devModeEnabled && !dpsModeEnabled) {
             this.scene.start('GameScene');
         } else {
             this.scene.start('MenuScene');

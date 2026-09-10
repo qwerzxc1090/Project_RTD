@@ -111,7 +111,8 @@ Game.HUD.prototype._createTopBar = function() {
 
 Game.HUD.prototype._createSpeedButton = function() {
     var self  = this;
-    var speeds = [0.5, 1, 2, 3, 4, 5, 6];
+    var speeds = Game.Runtime && Game.Runtime.getSpeedOptions
+        ? Game.Runtime.getSpeedOptions() : [0.5, 1, 2, 3, 4, 5, 6];
 
     // 저장된 배속 불러오기
     var saved = 1;
@@ -125,12 +126,30 @@ Game.HUD.prototype._createSpeedButton = function() {
     var baseY = spdCfg.y || (Game.Config.HEIGHT / 2 - 52);
     var bw = 54, bh = 26, gap = 6;
 
-    // SPEED 라벨
-    this.scene.add.text(baseX, baseY - 4, 'SPEED', {
-        fontSize: '8px',
+    // 화면 위에서도 구분되는 SPEED 패널 배경과 제목 바
+    var buttonAreaHeight = speeds.length * bh + Math.max(0, speeds.length - 1) * gap;
+    var panelWidth = bw + 20;
+    var panelTop = baseY - 31;
+    var panelHeight = buttonAreaHeight + 38;
+    var speedPanel = this.scene.add.graphics().setDepth(99);
+    speedPanel.fillStyle(0x060B18, 0.94);
+    speedPanel.fillRoundedRect(baseX - panelWidth / 2, panelTop, panelWidth, panelHeight, 8);
+    speedPanel.lineStyle(1.5, 0x4C78B8, 0.95);
+    speedPanel.strokeRoundedRect(baseX - panelWidth / 2, panelTop, panelWidth, panelHeight, 8);
+    speedPanel.fillStyle(0x17335D, 0.98);
+    speedPanel.fillRoundedRect(baseX - panelWidth / 2 + 2, panelTop + 2, panelWidth - 4, 22, 6);
+    speedPanel.fillRect(baseX - panelWidth / 2 + 2, panelTop + 16, panelWidth - 4, 8);
+    speedPanel.lineStyle(1, 0x7DB9FF, 0.75);
+    speedPanel.lineBetween(baseX - panelWidth / 2 + 6, baseY - 5, baseX + panelWidth / 2 - 6, baseY - 5);
+
+    this.scene.add.text(baseX, panelTop + 13, 'SPEED', {
+        fontSize: '11px',
         fontFamily: 'Oxanium',
-        color: '#555577'
-    }).setOrigin(0.5, 1).setDepth(102);
+        fontStyle: 'bold',
+        color: '#D8EBFF',
+        stroke: '#061224',
+        strokeThickness: 2
+    }).setOrigin(0.5).setDepth(102);
 
     // 색상정의
     this._speedColors = {

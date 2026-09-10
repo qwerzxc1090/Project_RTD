@@ -1,0 +1,15 @@
+{
+  "name": "project-rtd",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lucky Defense browser game",
+  "scripts": {
+    "start": "node server.js",
+    "start:managed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_server.ps1",
+    "start:deploy": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_deploy_server.ps1",
+    "check": "node --check server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

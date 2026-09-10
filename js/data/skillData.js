@@ -15,6 +15,25 @@ Game.SkillData = {
 
     init: function(data) {
         this.skills = data || {};
+        this.applyLocalOverrides();
+    },
+
+    applyLocalOverrides: function() {
+        try {
+            var raw = localStorage.getItem('rtd_skillData');
+            if (!raw) return;
+            var saved = JSON.parse(raw);
+            if (!saved || typeof saved !== 'object') return;
+
+            var ids = Object.keys(saved);
+            for (var i = 0; i < ids.length; i++) {
+                var id = ids[i];
+                if (this.skills[id]) Object.assign(this.skills[id], saved[id]);
+                else this.skills[id] = saved[id];
+            }
+        } catch(e) {
+            console.warn('[SkillData] localStorage override load failed:', e);
+        }
     },
 
     // skillId로 스킬 정보 조회 (없으면 id=2 기본 반환)
@@ -28,22 +47,5 @@ Game.SkillData = {
         return labels[id] || 'NORMAL';
     },
 };
-
-// ── localStorage 오버라이드 (tools/data-editor.html) ──
-(function() {
-    try {
-        var raw = localStorage.getItem('rtd_skillData');
-        if (!raw) return;
-        var saved = JSON.parse(raw);
-        if (!saved || typeof saved !== 'object') return;
-        var ids = Object.keys(saved);
-        for (var i = 0; i < ids.length; i++) {
-            var id = ids[i];
-            if (Game.SkillData.skills[id]) {
-                Object.assign(Game.SkillData.skills[id], saved[id]);
-            }
-        }
-    } catch(e) {}
-})();
 
 window.Game = Game;

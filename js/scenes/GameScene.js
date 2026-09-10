@@ -8,11 +8,14 @@ Game.GameScene = new Phaser.Class({
     },
     
     create: function() {
+        this._returningToMenu = false;
         var self = this;
         
         // Initialize systems
         Game.EconomySystem.reset();
-        if (Game.DamageTracker) Game.DamageTracker.init();
+        if (Game.DamageTracker) {
+            Game.DamageTracker.init();
+        }
         this.waveSystem = new Game.WaveSystem(this);
         
         // Game state
@@ -30,28 +33,62 @@ Game.GameScene = new Phaser.Class({
         Game.HitEffectPool.init(this);
         this._cachedActiveMonsters = [];  // update에서 재사용
 
-        // ── 멀티 시뮬레이션 인스턴스 ID (URL ?sim=X) ──
+        // ── 시뮬레이션 인스턴스 ID ──
+        // sessionStorage는 창(탭)마다 분리되므로 여러 창이 같은 주소를 열어도
+        // 결과 기록과 자동 재시작 플래그가 서로 덮어쓰지 않는다.
+        this.simInstanceId = (function() {
+            var id = null;
+            try { id = sessionStorage.getItem('rtd_simInstanceId'); } catch(e) {}
+            if (!id) {
+                id = 'tab_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
+                try { sessionStorage.setItem('rtd_simInstanceId', id); } catch(e) {}
+            }
+            return id;
+        }());
+
+        // ── 멀티 시뮬레이션 그룹 ID (선택적 URL ?sim=X) ──
         this.simId = (function() {
             try { return new URLSearchParams(window.location.search).get('sim'); } catch(e) { return null; }
         }());
-        this.simResultsKey = this.simId ? 'rtd_simResults_' + this.simId : 'rtd_simResults';
+        this.simResultsKey = 'rtd_simResults_' +
+            (this.simId ? 'group_' + this.simId + '_' : '') + this.simInstanceId;
 
         // ── SIM 모드 감지 (localStorage 기준) ──
-        this.devSimMode = (function() {
+        var devToolsEnabled = !Game.Runtime || Game.Runtime.isDevToolsEnabled();
+        this.devSimMode = devToolsEnabled && (function() {
             try { return localStorage.getItem('rtd_devMode') === '1'; } catch(e) { return false; }
         }());
 
         // ── DPS MODE 감지 ──
-        this.dpsMode = (function() {
+        this.dpsMode = devToolsEnabled && (function() {
             try { return localStorage.getItem('rtd_dpsMode') === '1'; } catch(e) { return false; }
         }());
+        // 배포판에서는 일반 전투 DPS 미터를 제공한다. 개발판의 DPS MODE는
+        // 별도 테스트 모드로만 유지한다.
+        if (Game.DamageTracker) Game.DamageTracker.enabled = this.dpsMode || !devToolsEnabled;
         // DPS MODE 활성화 시 SIM MODE는 비활성화 (충돌 방지)
         if (this.dpsMode) this.devSimMode = false;
+
+        // 탭이 메모리 절약·브라우저 업데이트 등으로 다시 로드되어도 DEV 실행을 복원한다.
+        if (this.devSimMode) {
+            try {
+                sessionStorage.setItem('rtd_simRunActive_' + this.simInstanceId, '1');
+            } catch(e) {}
+        }
+
+        // SIM MODE: R1은 제외하고, 각 라운드 시작 시점의 생명력을 구간별로 수집한다.
+        this._simRoundLives = { early: [], mid: [], late: [] };
+        this._simActiveWave = null;
+        this._simFailureReason = null;
+        this._simDiagnostics = {
+            gachaCount: 0, synthesisCount: 0, coverageSum: 0, coverageCount: 0,
+            roundStartDpsSum: 0, roundStartDpsCount: 0
+        };
 
         
         // Tower placement tracking
         this.towerSlots = [];           // Pre-computed tower placement positions
-        this.slotOccupancy = [];         // 슬롯당 배치된 타워 수 (최대 5)
+        this.slotOccupancy = [];         // 슬롯당 배치된 타워 수 (일반 4, 중앙 10)
         this._lastActiveCount = -1;       // 이전 프레임 몬스터 수 (변경 감지용)
         
         // Create map
@@ -62,6 +99,7 @@ Game.GameScene = new Phaser.Class({
         
         // Create UI
         this._createUI();
+        if (devToolsEnabled) this._createReturnToMenuButton();
         
         // Setup events
         this._setupEvents();
@@ -69,7 +107,9 @@ Game.GameScene = new Phaser.Class({
         // 저장된 배속 복원 (이벤트 리스너 등록 후 실행)
         var savedSpeed = 1;
         try { savedSpeed = parseFloat(localStorage.getItem('rtd_speed')) || 1; } catch(e) {}
-        if ([0.5, 1, 2, 3, 4, 5, 6].indexOf(savedSpeed) !== -1 && savedSpeed !== 1) {
+        var speedOptions = Game.Runtime && Game.Runtime.getSpeedOptions
+            ? Game.Runtime.getSpeedOptions() : [0.5, 1, 2, 3, 4, 5, 6];
+        if (speedOptions.indexOf(savedSpeed) !== -1 && savedSpeed !== 1) {
             this.events.emit('speedChanged', savedSpeed);
         }
         
@@ -136,6 +176,52 @@ Game.GameScene = new Phaser.Class({
     _setupSpaceKey: function() {
         // 스페이스바 등록 (배속 토글용으로만 유지)
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        if (Game.Runtime && Game.Runtime.isDevToolsEnabled()) {
+            this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+            this.escapeKey.on('down', this._returnToMenu, this);
+        }
+    },
+
+    _createReturnToMenuButton: function() {
+        var self = this;
+        // HUD의 📊 DPS 토글 바로 왼쪽에 배치한다.
+        var x = 860, y = 5, w = 104, h = 26;
+        var bg = this.add.graphics().setDepth(1001);
+        var label = this.add.text(x + w / 2, y + h / 2, '메인 화면  ESC', {
+            fontSize: '10px', fontFamily: 'Oxanium', color: '#BBD7FF'
+        }).setOrigin(0.5).setDepth(1002);
+        var draw = function(hover) {
+            bg.clear();
+            bg.fillStyle(hover ? 0x183052 : 0x101A2A, 0.96);
+            bg.fillRoundedRect(x, y, w, h, 5);
+            bg.lineStyle(1, hover ? 0x77AAFF : 0x446688, 1);
+            bg.strokeRoundedRect(x, y, w, h, 5);
+            label.setColor(hover ? '#FFFFFF' : '#BBD7FF');
+        };
+        draw(false);
+
+        this.add.zone(x + w / 2, y + h / 2, w, h).setDepth(1003)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerover', function() { draw(true); })
+            .on('pointerout', function() { draw(false); })
+            .on('pointerdown', function() { self._returnToMenu(); });
+    },
+
+    _returnToMenu: function() {
+        if (this._returningToMenu) return;
+        this._returningToMenu = true;
+
+        // DEV 실행을 끝내고 시작 화면으로 돌아온 경우, 다음 게임은 일반 게임으로 시작한다.
+        // 누적된 DEV 결과 데이터는 유지한다.
+        try {
+            if (this.simInstanceId) {
+                sessionStorage.removeItem('rtd_simRunActive_' + this.simInstanceId);
+                sessionStorage.removeItem('rtd_simAutoRestart_' + this.simInstanceId);
+            }
+        } catch(e) {}
+        try { localStorage.setItem('rtd_devMode', '0'); } catch(e) {}
+        try { if (this.waveSystem) this.waveSystem.destroy(); } catch(e) {}
+        this.scene.start('MenuScene');
     },
     
     _startGameAction: function() {
@@ -864,6 +950,14 @@ Game.GameScene = new Phaser.Class({
     },
 
     _computeTowerSlots: function() {
+        // Scene shutdown destroys these labels but leaves instance properties intact.
+        // Clear them before the initial slot draw can update a previous game's text.
+        this._centerSlotIdx = -1;
+        this._centerCountText = null;
+        this._reservedSlotLegend = null;
+        this._longRangeReservedSlotIndices = null;
+        this._midRangeReservedSlotIndices = null;
+        this._earlyPlacementPriorityReleased = false;
         var FIELD    = Game.Config.FIELD;
         var halfPath = FIELD.PATH_WIDTH / 2;
 
@@ -929,24 +1023,34 @@ Game.GameScene = new Phaser.Class({
 
                 // 정 중앙 (5,5) 1자리만 최대 10개, 나머지: 4개
                 var maxCap = (col === 5 && row === 5) ? 10 : 4;
-                // 경로 내부 가장자리까지 4방향 거리 사전 계산
+                // 실제 전투 판정과 동일하게 경로 중심선까지 4방향 거리 사전 계산
                 var distToPath = {
-                    top:    gy - innerT,
-                    bottom: innerB - gy,
-                    left:   gx - innerL,
-                    right:  innerR - gx
+                    top:    gy - FIELD.TOP,
+                    bottom: FIELD.BOTTOM - gy,
+                    left:   gx - FIELD.LEFT,
+                    right:  FIELD.RIGHT - gx
                 };
                 var minDist = Math.min(distToPath.top, distToPath.bottom, distToPath.left, distToPath.right);
-                var isCorner = ((col === 4 || col === 6) && (row === 4 || row === 6)) ||
-                               ((col === 2 || col === 8) && (row === 2 || row === 8)) ||
-                               ((col === 0 || col === 10) && (row === 0 || row === 10));
                 var cornerBonus = 0;
-                if (isCorner) {
-                    if (col <= 5 && row <= 5)      cornerBonus = 300; // 1순위: 11시 (Top-Left)
-                    else if (col <= 5 && row > 5)  cornerBonus = 200; // 2순위: 7시 (Bottom-Left)
-                    else if (col > 5 && row > 5)   cornerBonus = 100; // 3순위: 5시 (Bottom-Right, 우측 하단)
-                    else                           cornerBonus = 10;  // 4순위: 1시 (Top-Right, 우측 상단)
+                var cornerRings = [0, 2, 4];
+                for (var cri = 0; cri < cornerRings.length; cri++) {
+                    var cr = cornerRings[cri];
+                    var crMax = 10 - cr;
+                    // 각 꼭짓점과 그 양쪽 인접 슬롯 2개를 같은 모서리 영역으로 취급한다.
+                    var nearTopLeft = (row === cr && (col === cr || col === cr + 1)) ||
+                                      (col === cr && row === cr + 1);
+                    var nearBottomLeft = (col === cr && (row === crMax || row === crMax - 1)) ||
+                                         (row === crMax && col === cr + 1);
+                    var nearBottomRight = (row === crMax && (col === crMax || col === crMax - 1)) ||
+                                          (col === crMax && row === crMax - 1);
+                    var nearTopRight = (col === crMax && (row === cr || row === cr + 1)) ||
+                                       (row === cr && col === crMax - 1);
+                    if (nearTopLeft) cornerBonus = Math.max(cornerBonus, 300);
+                    if (nearBottomLeft) cornerBonus = Math.max(cornerBonus, 200);
+                    if (nearBottomRight) cornerBonus = Math.max(cornerBonus, 100);
+                    if (nearTopRight) cornerBonus = Math.max(cornerBonus, 10);
                 }
+                var isCorner = cornerBonus > 0;
                 grid.push({ col: col, row: row, x: gx, y: gy,
                             ring: ring, side: 'grid',
                             zone: zone, zoneName: zoneName, maxCapacity: maxCap,
@@ -993,44 +1097,129 @@ Game.GameScene = new Phaser.Class({
         this.towerSlots = grid;
         this.slotOccupancy = this.towerSlots.map(function() { return 0; });
 
-        // ── _독 타워 전용: Zone별 모서리 슬롯 사전 계산 ──
-        // Zone 3 모서리 (경로~17px): (0,0),(0,10),(10,10),(10,0)
-        // Zone 2 모서리 (경로~91px): (2,2),(2,8),(8,8),(8,2)
-        // Zone 1 모서리 (경로~202px): (4,4),(4,6),(6,6),(6,4)
-        var self = this;
-        var POISON_CORNERS = {
-            zone3: [{ col:0, row:0 }, { col:0, row:10 }, { col:10, row:10 }, { col:10, row:0 }],
-            zone2: [{ col:2, row:2 }, { col:2, row:8 },  { col:8, row:8 },   { col:8, row:2 }],
-            zone1: [{ col:4, row:4 }, { col:4, row:6 },  { col:6, row:6 },   { col:6, row:4 }]
-        };
+        // 슬롯 표시·디버그용 정렬 순서. 자동 배치 선택에는 사용하지 않는다.
+        this._standardSlotOrder = this.towerSlots.map(function(slot, index) {
+            var dx = slot.col - 5;
+            var dy = slot.row - 5;
+            var angle = Math.atan2(-dx, -dy); // 12시=0, 반시계 방향으로 증가
+            if (angle < 0) angle += Math.PI * 2;
+            // 좌측 상단 기준의 각도값은 표시·디버그 정렬에만 사용한다.
+            var startAngle = Math.atan2(2, 5);
+            var placementAngle = angle - startAngle;
+            if (placementAngle < 0) placementAngle += Math.PI * 2;
+            return { index: index, ring: slot.ring, angle: placementAngle, isCorner: slot.isCorner };
+        }).filter(function(item) {
+            return !item.isCorner;
+        }).sort(function(a, b) {
+            return a.ring - b.ring || a.angle - b.angle;
+        }).map(function(item) {
+            return item.index;
+        });
 
-        function findSlotIdx(target) {
-            for (var i = 0; i < self.towerSlots.length; i++) {
-                if (self.towerSlots[i].col === target.col && self.towerSlots[i].row === target.row) return i;
-            }
-            return -1;
+        // 중거리 타워(160~179)는 외곽·중간 링의 비모서리 슬롯을 우선 사용한다.
+        // 단거리 타워는 기존 전체 일반 슬롯 순서를 유지한다.
+        this._midRangeSlotOrder = this._standardSlotOrder.filter(function(index) {
+            return this.towerSlots[index].ring <= 3;
+        }, this);
+
+        this._cornerSlotIndices = this.towerSlots.map(function(slot, index) {
+            return slot.isCorner ? index : -1;
+        }).filter(function(index) {
+            return index >= 0;
+        });
+
+        // 플레이어가 효율적으로 인식하는 최외곽 모서리를 각 모서리 2슬롯씩 우선 영역으로 지정한다.
+        // 단, 실제 경로 커버리지가 크게 낮으면 기존 최적 모서리를 선택한다.
+        var outerPerCorner = (Game.Config.TOWER_PLACEMENT || {}).OUTER_CORNER_PRIORITY_COUNT_PER_CORNER || 2;
+        var outerGroups = {};
+        for (var oi = 0; oi < this._cornerSlotIndices.length; oi++) {
+            var outerIndex = this._cornerSlotIndices[oi];
+            var outerSlot = this.towerSlots[outerIndex];
+            if (outerSlot.ring !== 0) continue;
+            var cornerKey = String(outerSlot.cornerBonus || 0);
+            if (!outerGroups[cornerKey]) outerGroups[cornerKey] = [];
+            outerGroups[cornerKey].push(outerIndex);
         }
+        this._outerCornerPriorityIndices = [];
+        Object.keys(outerGroups).forEach(function(key) {
+            this._outerCornerPriorityIndices = this._outerCornerPriorityIndices
+                .concat(outerGroups[key].slice(0, outerPerCorner));
+        }, this);
 
-        this._poisonCorners = {
-            zone3: POISON_CORNERS.zone3.map(findSlotIdx),
-            zone2: POISON_CORNERS.zone2.map(findSlotIdx),
-            zone1: POISON_CORNERS.zone1.map(findSlotIdx)
-        };
-        this._poisonCornerNext = { zone3: 0, zone2: 0, zone1: 0 };
-        console.log('[PoisonCorners] Zone3:', this._poisonCorners.zone3,
-                    'Zone2:', this._poisonCorners.zone2,
-                    'Zone1:', this._poisonCorners.zone1);
+        this._slotIndexByGridKey = {};
+        this.towerSlots.forEach(function(slot, index) {
+            this._slotIndexByGridKey[slot.col + ',' + slot.row] = index;
+        }, this);
+
+        // 중거리 모서리 우선 순서는 (0,0)에서 시작해 반시계 방향으로 고정한다.
+        // 각 모서리의 최외곽 3칸을 순서대로 사용한다.
+        var outerCornerCoords = [
+            [0, 0], [1, 0], [0, 1],
+            [0, 10], [1, 10], [0, 9],
+            [10, 10], [9, 10], [10, 9],
+            [10, 0], [9, 0], [10, 1]
+        ];
+        this._outerCornerPriorityIndices = outerCornerCoords.map(function(coord) {
+            return this._slotIndexByGridKey[coord[0] + ',' + coord[1]];
+        }, this).filter(function(index) {
+            return index !== undefined;
+        });
+
+        // 이전 배치 정책의 표시·디버그용 외곽 좌표 목록이다.
+        // 자동 배치 선택에는 사용하지 않는다.
+        var outerPlacementPhases = [
+            // 시작 2칸
+            [[2, 0], [3, 0]],
+            // 10시→7시 연결 외곽을 먼저 채운 뒤 양쪽 모서리 6칸을 채운다.
+            [[0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [0, 7], [0, 8],
+                [1, 0], [0, 0], [0, 1], [0, 10], [1, 10], [0, 9]],
+            // 7시→5시 연결 외곽을 먼저 채운 뒤 5시 모서리 3칸을 채운다.
+            [[2, 10], [3, 10], [4, 10], [5, 10], [6, 10], [7, 10], [8, 10],
+                [9, 10], [10, 10], [10, 9]],
+            // 5시→1시 연결 외곽을 먼저 채운 뒤 1시 모서리 3칸을 채운다.
+            [[10, 8], [10, 7], [10, 6], [10, 5], [10, 4], [10, 3], [10, 2],
+                [10, 1], [10, 0], [9, 0], [8, 0], [7, 0], [6, 0], [5, 0], [4, 0]]
+        ];
+        var outerCoords = [];
+        outerPlacementPhases.forEach(function(phase) {
+            outerCoords = outerCoords.concat(phase);
+        });
+        this._outerShortMidSlotOrder = outerCoords.map(function(coord) {
+            return this._slotIndexByGridKey[coord[0] + ',' + coord[1]];
+        }, this).filter(function(index) {
+            return index !== undefined;
+        });
+        // 중거리 타워는 시작 2칸을 건너뛰고 10시→7시 연결 구간부터 사용한다.
+        var midOuterCoords = [];
+        outerPlacementPhases.slice(1).forEach(function(phase) {
+            midOuterCoords = midOuterCoords.concat(phase);
+        });
+        this._outerMidSlotOrder = midOuterCoords.map(function(coord) {
+            return this._slotIndexByGridKey[coord[0] + ',' + coord[1]];
+        }, this).filter(function(index) {
+            return index !== undefined;
+        });
+
+        // 바깥 링을 모두 사용한 뒤 두 번째 링의 12시부터 반시계 방향으로 진행한다.
+        this._innerShortMidSlotOrder = this._standardSlotOrder.filter(function(index) {
+            return this.towerSlots[index].ring >= 1;
+        }, this);
 
         var z1 = grid.filter(function(g){return Math.floor(g.zone)===1;}).length;
         var z2 = grid.filter(function(g){return g.zone===2;}).length;
         var z3 = grid.filter(function(g){return g.zone===3;}).length;
-        console.log('[TowerSlots] 11×11 | Zone1(안쪽)=' + z1 + ' Zone2(중간)=' + z2 + ' Zone3(바깥)=' + z3
-            + ' | spacingX=' + spacingX + 'px');
+        var showPlacementDebugUI = !Game.Runtime || Game.Runtime.isDevToolsEnabled();
+        if (showPlacementDebugUI) {
+            console.log('[TowerSlots] 11×11 | Zone1(안쪽)=' + z1 + ' Zone2(중간)=' + z2 + ' Zone3(바깥)=' + z3
+                + ' | spacingX=' + spacingX + 'px');
+        }
 
-        // ── 존 경계 시각화 ──
+        // 슬롯 UI는 일반 플레이에도 표시한다. 존 경계·명칭은 개발 레이아웃 점검용이다.
         this.slotGraphics = this.add.graphics();
         this.slotGraphics.setDepth(5);
-        this._drawZoneBorders(areaL, areaT, spacingX, spacingY, COLS, ROWS);
+        if (showPlacementDebugUI) {
+            this._drawZoneBorders(areaL, areaT, spacingX, spacingY, COLS, ROWS);
+        }
         this._drawAvailableSlots();
 
         // ── 중앙 (5,5) 슬롯 카운터 텍스트 ──
@@ -1104,6 +1293,22 @@ Game.GameScene = new Phaser.Class({
             var slot   = this.towerSlots[i];
             var zColor = ZONE_COLOR[slot.zone] || 0xAAAAAA;
             var dColor = occ > 0 ? 0xFFAA22 : zColor;
+            var isLongReserved = this._longRangeReservedSlotIndices &&
+                this._longRangeReservedSlotIndices.indexOf(i) >= 0;
+            var isMidReserved = this._midRangeReservedSlotIndices &&
+                this._midRangeReservedSlotIndices.indexOf(i) >= 0;
+
+            // 사거리별 보호 구역 표시는 개발판에서만 제공한다.
+            // 배포판에서는 같은 예약 로직을 유지하되 일반 슬롯처럼 그린다.
+            var showReservationUI = !Game.Runtime || Game.Runtime.isDevToolsEnabled();
+            if (showReservationUI && (isLongReserved || isMidReserved)) {
+                var reserveColor = isLongReserved ? 0x23D9E8 : 0xB66CFF;
+                this.slotGraphics.fillStyle(reserveColor, occ > 0 ? 0.15 : 0.28);
+                this.slotGraphics.fillRect(slot.x - half, slot.y - half, slotSize, slotSize);
+                this.slotGraphics.lineStyle(2, reserveColor, 0.95);
+                this.slotGraphics.strokeRect(slot.x - half, slot.y - half, slotSize, slotSize);
+                continue;
+            }
 
             if (i === nextIdx) {
                 this.slotGraphics.fillStyle(dColor, occ > 0 ? 0.15 : 0.20);
@@ -1121,33 +1326,151 @@ Game.GameScene = new Phaser.Class({
         this._updateCenterCount();
     },
 
+    _showReservedSlotLegend: function() {
+        if (Game.Runtime && !Game.Runtime.isDevToolsEnabled()) return;
+        if (this._reservedSlotLegend) return;
+        this._reservedSlotLegend = this.add.text(447, 100,
+            '■ 중거리 예약', {
+                fontSize: '9px', fontFamily: 'Oxanium', color: '#B66CFF',
+                stroke: '#000000', strokeThickness: 2
+            }).setDepth(55);
+    },
+
     _updateCenterCount: function() {
         if (this._centerSlotIdx < 0 || !this._centerCountText) return;
+        // 씬 전환 중 이전 게임의 텍스트가 파괴됐으면 새 게임 생성을 계속한다.
+        if (!this._centerCountText.active || !this._centerCountText.frame) {
+            this._centerCountText = null;
+            return;
+        }
         var occ = this.slotOccupancy[this._centerSlotIdx] || 0;
         var cap = this.towerSlots[this._centerSlotIdx].maxCapacity || 4;
         this._centerCountText.setText('⚙ ' + occ + ' / ' + cap);
         this._centerCountText.setColor(occ >= cap ? '#FF4444' : '#FFD700');
     },
 
-    // ── 경로 커버리지 계산: 슬롯에서 사정거리로 닿는 경로 총 길이 ──
-    // 4벽면(상하좌우)에 대해 range원과 경로의 교차 길이를 합산
-    _calcPathCoverage: function(slot, range) {
-        var d = slot.distToPath;
-        //                  상단(←1번째)  하단(→3번째)  좌측(↓2번째)  우측(↑4번째)
-        var dists   = [d.top,   d.bottom, d.left,  d.right];
-        var weights = [1.3,     1.1,      1.2,     1.0];  // 경로 초반 가중치
-        var total = 0;
-        var wallLen = 404;  // 경로 내부 벽면 길이 (innerR-innerL ≈ innerB-innerT)
+    // 원과 실제 경로 선분이 겹치는 길이. 무한 직선 방식의 모서리 과대평가를 방지한다.
+    _calcSegmentCoverage: function(cx, cy, range, start, end) {
+        var vx = end.x - start.x;
+        var vy = end.y - start.y;
+        var px = start.x - cx;
+        var py = start.y - cy;
+        var a = vx * vx + vy * vy;
+        if (a <= 0) return 0;
+        var b = 2 * (px * vx + py * vy);
+        var c = px * px + py * py - range * range;
+        var discriminant = b * b - 4 * a * c;
+        if (discriminant <= 0) return 0;
 
-        for (var i = 0; i < 4; i++) {
-            var dist = dists[i];
-            if (dist > 0 && range > dist) {
-                // range원과 벽면의 교차 길이 = 2 × √(range² - dist²)
-                var cover = 2 * Math.sqrt(range * range - dist * dist);
-                total += Math.min(cover, wallLen) * weights[i];
-            }
+        var root = Math.sqrt(discriminant);
+        var t1 = (-b - root) / (2 * a);
+        var t2 = (-b + root) / (2 * a);
+        var from = Math.max(0, Math.min(t1, t2));
+        var to = Math.min(1, Math.max(t1, t2));
+        return to > from ? (to - from) * Math.sqrt(a) : 0;
+    },
+
+    _getPlacementRound: function() {
+        try {
+            var round = this.waveSystem && this.waveSystem.getCurrentRound
+                ? Number(this.waveSystem.getCurrentRound()) : 1;
+            return Number.isFinite(round) && round > 0 ? round : 1;
+        } catch (e) {
+            return 1;
+        }
+    },
+
+    // R1~R24는 초반 전선 구간을 우선하고, R25부터 또는 우선 구간이 포화되면 동일하게 평가한다.
+    _getPlacementPathWeights: function(hasEarlyPriorityCoverage) {
+        if (this._getPlacementRound() >= 25 || hasEarlyPriorityCoverage === false) {
+            return [1, 1, 1, 1, 1];
+        }
+        return [1.30, 1.20, 1.10, 1, 1];
+    },
+
+    // 실제 몬스터 경로 중심선에서 사정거리로 공격 가능한 경로 길이
+    _calcPathCoverageAt: function(x, y, range, weightsOverride) {
+        var field = Game.Config.FIELD;
+        // getWaypoints()는 첫 목적지부터 반환하므로 실제 출발점→첫 목적지 구간을 앞에 추가한다.
+        var points = [{ x: field.SPAWN_X, y: field.SPAWN_Y }].concat(field.getWaypoints());
+        var weights = weightsOverride || this._getPlacementPathWeights();
+        var total = 0;
+        for (var i = 0; i < points.length - 1; i++) {
+            var weight = weights[i] !== undefined ? weights[i] : 1;
+            total += this._calcSegmentCoverage(x, y, range, points[i], points[i + 1]) * weight;
         }
         return total;
+    },
+
+    _calcPathCoverage: function(slot, range) {
+        return this._calcPathCoverageAt(slot.x, slot.y, range);
+    },
+
+    _isCornerPriorityTower: function(unitData) {
+        var cfg = Game.Config.TOWER_PLACEMENT || {};
+        var minRange = cfg.CORNER_MIN_RANGE || 180;
+        return (unitData.range || 0) >= minRange;
+    },
+
+    _isMidRangeTower: function(unitData) {
+        var cfg = Game.Config.TOWER_PLACEMENT || {};
+        var minRange = cfg.MID_RANGE_MIN || 150;
+        var maxRange = cfg.CORNER_MIN_RANGE || 180;
+        var range = unitData.range || 0;
+        return range >= minRange && range < maxRange;
+    },
+
+    _preferCenterOverBelowSlot: function(slotIndex, range) {
+        var slot = this.towerSlots[slotIndex];
+        if (!slot || slot.col !== 5 || slot.row !== 6 || this._centerSlotIdx < 0) return -1;
+
+        var center = this.towerSlots[this._centerSlotIdx];
+        var centerOcc = this.slotOccupancy[this._centerSlotIdx] || 0;
+        if (centerOcc >= (center.maxCapacity || 4)) return -1;
+
+        var belowPoint = this._getSlotPlacementPoint(slot, this.slotOccupancy[slotIndex] || 0);
+        var centerPoint = this._getSlotPlacementPoint(center, centerOcc);
+        var belowCoverage = this._calcPathCoverageAt(belowPoint.x, belowPoint.y, range);
+        var centerCoverage = this._calcPathCoverageAt(centerPoint.x, centerPoint.y, range);
+        var cfg = Game.Config.TOWER_PLACEMENT || {};
+        var ratio = cfg.CENTER_OVER_BELOW_COVERAGE_RATIO !== undefined
+            ? Number(cfg.CENTER_OVER_BELOW_COVERAGE_RATIO) : 0.95;
+        return centerCoverage >= belowCoverage * ratio ? this._centerSlotIdx : -1;
+    },
+
+    // 4등분 중심을 계산한다. 실제 생성 시에만 중심 주변 ±30% 지터를 적용한다.
+    _getSlotPlacementPoint: function(slot, occCount, randomize) {
+        var slotSize = Game.Config.TOWER_PLACEMENT.SLOT_SIZE;
+        var offset;
+
+        // 중앙 슬롯은 용량 10에 맞춘 전용 원형 좌표를 사용한다.
+        // 기존 4개 사분면 반복으로 5~10번째 타워가 같은 좌표에 겹치던 문제를 제거한다.
+        if ((slot.maxCapacity || 4) > 4) {
+            var centerCapacity = slot.maxCapacity || 10;
+            var angle = -Math.PI / 2 + (Math.PI * 2 * (occCount % centerCapacity) / centerCapacity);
+            var radius = slotSize * 0.42;
+            offset = { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+        } else {
+            var qOff = slotSize * 0.25;
+            var quads = [
+                { x: -qOff, y: -qOff },
+                { x:  qOff, y: -qOff },
+                { x: -qOff, y:  qOff },
+                { x:  qOff, y:  qOff }
+            ];
+            offset = quads[occCount % quads.length];
+        }
+
+        if (randomize) {
+            // 각 4등분 영역 폭의 30% = 슬롯 폭의 15% (34px 슬롯 기준 ±5.1px)
+            var jitter = slotSize * 0.15;
+            offset.x += (Math.random() * 2 - 1) * jitter;
+            offset.y += (Math.random() * 2 - 1) * jitter;
+        }
+        return {
+            x: Math.max(this._towerAreaL, Math.min(this._towerAreaR, slot.x + offset.x)),
+            y: Math.max(this._towerAreaT, Math.min(this._towerAreaB, slot.y + offset.y))
+        };
     },
 
     _createUI: function() {
@@ -1175,9 +1498,10 @@ Game.GameScene = new Phaser.Class({
             if (Game.EconomySystem._onGoldChange) Game.EconomySystem._onGoldChange(0);
         }
 
-        // 골드 로그 패널 (화면 좌상단)
+        // 골드 로그 패널은 등급표와 겹쳐 표시되지 않으므로 비활성화한다.
+        // GoldLog 데이터·게임 내 골드 계산은 그대로 유지한다.
         Game.GoldLog.reset();
-        this.goldLogPanel = new Game.GoldLogPanel(this);
+        this.goldLogPanel = null;
         if (!this.dpsMode) {
             Game.GoldLog.add(Game.Config.INITIAL_GOLD, '시작 골드', '#FFD700');
         }
@@ -1360,7 +1684,7 @@ Game.GameScene = new Phaser.Class({
         var customEvents = [
             'waveStart', 'spawnMonster', 'monsterKilled',
             'bossTimeOut', 'bossTimerTick',
-            'waveComplete', 'gameVictory', 'speedChanged', 'gachaResult',
+            'waveComplete', 'gameVictory', 'speedChanged', 'gachaResult', 'synthesisResult',
             'gachaRollback', 'addGoldReward'
         ];
         for (var ei = 0; ei < customEvents.length; ei++) {
@@ -1369,6 +1693,29 @@ Game.GameScene = new Phaser.Class({
         
         // Wave started
         this.events.on('waveStart', function(round, waveData, mult, scaledCount, scaledHp, baseHp) {
+            if (self.devSimMode && self._simDiagnostics) {
+                var roundStartDps = 0;
+                self.towers.forEach(function(tower) {
+                    if (!tower || !tower.active || !tower.unitData) return;
+                    roundStartDps += Number(tower.unitData.damage || 0) * 1000 /
+                        Math.max(1, Number(tower.unitData.attackSpeed || 1000));
+                });
+                self._simDiagnostics.roundStartDpsSum += roundStartDps;
+                self._simDiagnostics.roundStartDpsCount++;
+            }
+            self._simActiveWave = {
+                round: round,
+                isBoss: Game.WaveData.isBossRound(round),
+                timeAttack: !!(waveData && waveData.timeAttack),
+                timeLimit: waveData && waveData.timeLimit || 0
+            };
+            // 라운드 시작 직후의 생명력 기록. R1은 초기값이므로 통계에서 제외한다.
+            if (self.devSimMode && round >= 2) {
+                var livesAtStart = Game.EconomySystem.getLives();
+                var livesGroup = round <= 10 ? 'early' : (round <= 30 ? 'mid' : 'late');
+                self._simRoundLives[livesGroup].push(livesAtStart);
+            }
+
             // ── DPS MODE: 전용 표시 ──
             if (self.dpsMode) {
                 self.hud.updateRound('DPS');
@@ -1445,7 +1792,9 @@ Game.GameScene = new Phaser.Class({
             if (tl > 0) {
                 self.hud.showBossTimer(tl, waveData.timeAttack);
                 if (waveData.timeAttack) {
-                    self.addRoundLog('  ⏱ ' + tl + '초 이내 처치 필요! (실패 시 게임오버)', '#FF8844');
+                    // 긴 안내 문구를 두 로그 행으로 분리해 겹침을 방지한다.
+                    self.addRoundLog('  ⏱ ' + tl + '초 이내 처치 필요!', '#FF8844');
+                    self.addRoundLog('     실패 시 게임오버', '#FF8844');
                 } else {
                     self.addRoundLog('  ⏱ ' + tl + '초 제한 시간! (초과 시 다음 라운드 진행)', '#FFAA44');
                 }
@@ -1461,16 +1810,15 @@ Game.GameScene = new Phaser.Class({
         this.events.on('monsterKilled', function(monster) {
             self._removeMonster(monster);
             if (monster.isBoss) {
-                self.waveSystem.onBossKilled();
-                self.hud.hideBossTimer();
+                self.waveSystem.onBossKilled(monster);
                 self.addGameLog('★ BOSS 처치! +' + Math.floor(monster.goldReward) + 'G', '#FFD700');
-                Game.GoldLog.add(monster.goldReward, 'R' + self.waveSystem.currentRound + ' 보스 처치', '#FFD700');
+                Game.GoldLog.add(Math.floor(monster.goldReward), 'R' + self.waveSystem.currentRound + ' 보스 처치', '#FFD700');
             } else {
-                self.waveSystem.onMonsterKilled();
+                self.waveSystem.onMonsterKilled(monster);
                 // 마리당 골드 로그 (매 10히트 1회로 간소화)
                 if (((self.waveSystem._logKillCount = (self.waveSystem._logKillCount||0)+1) % 10) === 0) {
                     var roundGold = monster.goldReward * self.waveSystem.totalMonstersInWave;
-                    Game.GoldLog.add(Math.round(roundGold), 'R'+self.waveSystem.currentRound+' 킬(웨이브)', '#88FF88');
+                    Game.GoldLog.add(Math.floor(roundGold), 'R'+self.waveSystem.currentRound+' 킬(웨이브)', '#88FF88');
                 }
             }
             // DPS MODE: 리스폰 트리거
@@ -1486,9 +1834,12 @@ Game.GameScene = new Phaser.Class({
         });
 
         
-        // 보스 타임아웃 → 게임 오버 (DPS MODE 제외)
+        // 타임어택 실패 → 게임 오버 (DPS MODE 제외)
         this.events.on('bossTimeOut', function() {
-            if (!self.dpsMode) self._gameOver(false);
+            if (!self.dpsMode) {
+                self._simFailureReason = 'boss_timeout';
+                self._gameOver(false);
+            }
         });
         
         // 보스 타이머 tick → HUD 업데이트
@@ -1529,6 +1880,7 @@ Game.GameScene = new Phaser.Class({
         
         // Gacha result - auto-place tower
         this.events.on('gachaResult', function(unit) {
+            if (self.devSimMode) self._simDiagnostics.gachaCount++;
             self._autoPlaceTower(unit);
             self.inventory.addUnit(unit);
             var tierNames = { normal:'일반', rare:'레어', ancient:'고대', relic:'유물', saga:'서사', legend:'전설', epic:'에픽', myth:'신화', primordial:'태초' };
@@ -1536,6 +1888,16 @@ Game.GameScene = new Phaser.Class({
             var tName = tierNames[unit.tier] || unit.tier;
             var tColor = tierColors[unit.tier] || '#FFFFFF';
             self.addGameLog('[' + tName + '] ' + unit.name + ' 획득', tColor);
+        });
+
+        // 합성 결과 — 일반 타워 3개는 이미 소모된 뒤, 자동 배치 규칙으로 배치한다.
+        this.events.on('synthesisResult', function(unit) {
+            if (self.devSimMode) self._simDiagnostics.synthesisCount++;
+            self._autoPlaceTower(unit, { refundOnFailure: false });
+            self.inventory.addUnit(unit);
+            var tierNames = { rare:'레어', ancient:'고대', relic:'유물' };
+            var tierColors = { rare:'#228B22', ancient:'#9900CC', relic:'#FF7F00' };
+            self.addGameLog('[합성 · ' + (tierNames[unit.tier] || unit.tier) + '] ' + unit.name + ' 획득', tierColors[unit.tier] || '#FFFFFF');
         });
 
         // ── 앵벌이 스킬: N회 공격 골드 보상 ──
@@ -1594,6 +1956,7 @@ Game.GameScene = new Phaser.Class({
         
         var monster = Game.MonsterPool.acquire(spawnX, spawnY, {
             monsterId: data.id,
+            waveRound: data.waveRound,
             type: data.type,
             hp: data.hp,
             speed: data.speed,
@@ -1668,120 +2031,238 @@ Game.GameScene = new Phaser.Class({
 
         // Check game over (30 monsters on field) — DPS MODE에서는 게임 오버 없음
         if (isOver && !this.isGameOver && !this.dpsMode) {
+            this._simFailureReason = this.waveSystem && this.waveSystem.isBossRound()
+                ? 'boss_life'
+                : 'normal_life';
             this._gameOver(false);
         }
     },
     
-    _autoPlaceTower: function(unitData) {
-        // MAX_PER_SLOT: 슬롯별 maxCapacity 사용 (정 중앙 2×2 = 30, 나머지 = 4)
-        var slotIndex = -1;
-        var placedZone = -1;
+    _selectAutoPlacementSlot: function(unitData) {
+        var range = unitData.range || 120;
+        var placementCfg = Game.Config.TOWER_PLACEMENT || {};
+        var midRangeMin = placementCfg.MID_RANGE_MIN || 150;
+        var longRangeMin = placementCfg.CORNER_MIN_RANGE || 180;
+        var isLongRange = range >= longRangeMin;
+        var isMidRange = range >= midRangeMin && range < longRangeMin;
 
-
-        // ── 1단계: 유효 커버리지 기반 최적 슬롯 탐색 ─────────
-        if (slotIndex === -1) {
-            var range = unitData.range || 120;
-            var bestScore = -1;
-            var bestIdx = -1;
-
-            for (var si = 0; si < this.towerSlots.length; si++) {
-                var slot = this.towerSlots[si];
-                var cap = slot.maxCapacity || 4;
-                var occ = this.slotOccupancy[si] || 0;
-                if (occ >= cap) continue;
-
-                // 사정거리가 경로에 닿지 않는 슬롯 제외
-                if (range <= slot.minDistToPath) continue;
-
-                // 유효 경로 커버리지 계산 (4벽면)
-                var coverage = this._calcPathCoverage(slot, range);
-                if (coverage <= 0) continue;
-
-                // 점수 = 커버리지 - 분산 패널티 + 보너스
-                var isCenter = (slot.col === 5 && slot.row === 5);
-                var isCorner = slot.isCorner || false;
-                var penalty  = (isCenter || isCorner) ? 0 : (occ * 20);
-                var bonus    = isCenter ? 5 : (slot.cornerBonus || 0);
-                var score    = coverage - penalty + bonus;
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestIdx = si;
+        // 중거리 타워의 최적 커버리지 슬롯을 미리 예약한다.
+        // 장거리·단거리 타워는 이 예약 영역을 건너뛴다.
+        if (!this._longRangeReservedSlotIndices) {
+            var longRanges = [];
+            var midRanges = [];
+            var allUnits = Game.UnitData && Game.UnitData.units ? Game.UnitData.units : [];
+            allUnits.forEach(function(unit) {
+                var unitRange = unit.range || 0;
+                if (unitRange >= longRangeMin && longRanges.indexOf(unitRange) === -1) {
+                    longRanges.push(unitRange);
+                } else if (unitRange >= midRangeMin && unitRange < longRangeMin &&
+                           midRanges.indexOf(unitRange) === -1) {
+                    midRanges.push(unitRange);
+                }
+            });
+            var longSlotScores = [];
+            if (longRanges.length > 0) {
+                for (var lsi = 0; lsi < this.towerSlots.length; lsi++) {
+                    var longSlot = this.towerSlots[lsi];
+                    var longOcc = this.slotOccupancy[lsi] || 0;
+                    if (longOcc >= (longSlot.maxCapacity || 4)) continue;
+                    var longPoint = this._getSlotPlacementPoint(longSlot, longOcc);
+                    var maxLongCoverage = 0;
+                    longRanges.forEach(function(longRange) {
+                        maxLongCoverage = Math.max(maxLongCoverage,
+                            this._calcPathCoverageAt(longPoint.x, longPoint.y, longRange));
+                    }, this);
+                    longSlotScores.push({ index: lsi, coverage: maxLongCoverage });
                 }
             }
+            longSlotScores.sort(function(a, b) {
+                return b.coverage - a.coverage || a.index - b.index;
+            });
+            var reserveCount = placementCfg.LONG_RANGE_RESERVED_SLOT_COUNT !== undefined
+                ? Math.max(0, Math.floor(placementCfg.LONG_RANGE_RESERVED_SLOT_COUNT)) : 0;
+            this._longRangeReservedSlotIndices = longSlotScores
+                .slice(0, reserveCount)
+                .map(function(item) { return item.index; });
 
-            if (bestIdx >= 0) {
-                slotIndex = bestIdx;
-                placedZone = this.towerSlots[bestIdx].zone;
-            }
-        }
-
-        // ── 2단계 (차선책 Fallback): 유효 커버리지 자리가 가득 찼을 때 ──
-        // 환불 방지: 1순위 자리가 만석이면 경로까지 최단 거리(minDistToPath)가 가장 가까운 남은 빈 슬롯에 차선 배치
-        if (slotIndex === -1) {
-            var minPathDist = 999999;
-            var fallbackIdx = -1;
-
-            for (var fsi = 0; fsi < this.towerSlots.length; fsi++) {
-                var fSlot = this.towerSlots[fsi];
-                var fCap = fSlot.maxCapacity || 4;
-                var fOcc = this.slotOccupancy[fsi] || 0;
-                if (fOcc >= fCap) continue;
-
-                // 경로까지 거리가 가장 가까운 빈 슬롯 선택 (동점시 점유수 적은 슬롯)
-                var scoreDist = fSlot.minDistToPath + (fOcc * 10);
-                if (scoreDist < minPathDist) {
-                    minPathDist = scoreDist;
-                    fallbackIdx = fsi;
+            var midSlotScores = [];
+            if (midRanges.length > 0) {
+                for (var msi = 0; msi < this.towerSlots.length; msi++) {
+                    if (this._longRangeReservedSlotIndices.indexOf(msi) >= 0) continue;
+                    var midSlot = this.towerSlots[msi];
+                    var midOcc = this.slotOccupancy[msi] || 0;
+                    if (midOcc >= (midSlot.maxCapacity || 4)) continue;
+                    var midPoint = this._getSlotPlacementPoint(midSlot, midOcc);
+                    var maxMidCoverage = 0;
+                    midRanges.forEach(function(midRange) {
+                        maxMidCoverage = Math.max(maxMidCoverage,
+                            this._calcPathCoverageAt(midPoint.x, midPoint.y, midRange));
+                    }, this);
+                    midSlotScores.push({ index: msi, coverage: maxMidCoverage });
                 }
             }
+            midSlotScores.sort(function(a, b) {
+                return b.coverage - a.coverage || a.index - b.index;
+            });
+            var midReserveCount = placementCfg.MID_RANGE_RESERVED_SLOT_COUNT !== undefined
+                ? Math.max(0, Math.floor(placementCfg.MID_RANGE_RESERVED_SLOT_COUNT)) : 2;
+            this._midRangeReservedSlotIndices = midSlotScores
+                .slice(0, midReserveCount)
+                .map(function(item) { return item.index; });
+            this._showReservedSlotLegend();
+        }
 
-            if (fallbackIdx >= 0) {
-                slotIndex = fallbackIdx;
-                placedZone = this.towerSlots[fallbackIdx].zone;
+        var isReservedForOtherRange = function(index) {
+            if (isLongRange) return false;
+            if (this._longRangeReservedSlotIndices.indexOf(index) >= 0) return true;
+            return !isMidRange && this._midRangeReservedSlotIndices.indexOf(index) >= 0;
+        }.bind(this);
+
+        // R24까지는 시작·좌측·하단 중 하나라도 덮을 수 있는 빈 슬롯이 있을 때만
+        // 해당 세 구간의 우선 가중치를 유지한다. 모두 포화되면 즉시 전 경로를 동일하게 본다.
+        var placementRound = this._getPlacementRound();
+        var hasEarlyPriorityCoverage = false;
+        if (placementRound < 25) {
+            for (var psi = 0; psi < this.towerSlots.length; psi++) {
+                if (isReservedForOtherRange(psi)) continue;
+                var prioritySlot = this.towerSlots[psi];
+                var priorityOcc = this.slotOccupancy[psi] || 0;
+                if (priorityOcc >= (prioritySlot.maxCapacity || 4)) continue;
+                var priorityPoint = this._getSlotPlacementPoint(prioritySlot, priorityOcc);
+                var earlyCoverage = this._calcPathCoverageAt(
+                    priorityPoint.x, priorityPoint.y, range, [1, 1, 1, 0, 0]
+                );
+                if (earlyCoverage > 0) {
+                    hasEarlyPriorityCoverage = true;
+                    break;
+                }
             }
         }
+        if (placementRound < 25 && !hasEarlyPriorityCoverage && !this._earlyPlacementPriorityReleased) {
+            this._earlyPlacementPriorityReleased = true;
+            if (typeof this.addRoundLog === 'function') {
+                this.addRoundLog(
+                    '⚑ R' + placementRound + ' 우선 경로 포화 — 전 경로 동일 가중치 전환',
+                    '#66CCFF'
+                );
+            }
+        }
+        var coverageWeights = this._getPlacementPathWeights(hasEarlyPriorityCoverage);
+
+        var findBestCoverageSlot = function() {
+            var bestIndex = -1;
+            var bestCoverage = -1;
+            for (var bsi = 0; bsi < this.towerSlots.length; bsi++) {
+                var bestSlot = this.towerSlots[bsi];
+                if (isReservedForOtherRange(bsi)) continue;
+                var bestCapacity = bestSlot.maxCapacity || 4;
+                var bestOccupancy = this.slotOccupancy[bsi] || 0;
+                if (bestOccupancy >= bestCapacity) continue;
+
+                var bestPoint = this._getSlotPlacementPoint(bestSlot, bestOccupancy);
+                var coverage = this._calcPathCoverageAt(bestPoint.x, bestPoint.y, range, coverageWeights);
+                if (coverage > bestCoverage) {
+                    bestCoverage = coverage;
+                    bestIndex = bsi;
+                }
+            }
+            return bestIndex;
+        }.bind(this);
+
+        // 라운드별 경로 가중치 외에는 지역 순서·연결 구간을 두지 않는다.
+        return findBestCoverageSlot();
+    },
+
+    _isSynthesisNormalTower: function(tower) {
+        if (!tower || !tower.active || !tower.unitData || tower.unitData.tier !== 'normal') return false;
+        var isGoldTower = /_don$/.test(String(tower.unitData.id || ''));
+        return !isGoldTower || tower.goldFarmComplete === true;
+    },
+
+    getSynthesisNormalTowerCount: function() {
+        return this.towers.filter(function(tower) {
+            return this._isSynthesisNormalTower(tower);
+        }, this).length;
+    },
+
+    _compactTowerSlot: function(slotIndex) {
+        var slot = this.towerSlots[slotIndex];
+        if (!slot) return;
+        var slotTowers = this.towers.filter(function(tower) {
+            return tower && tower.active && tower.gridX === slotIndex;
+        }).sort(function(a, b) { return a.gridY - b.gridY; });
+        for (var i = 0; i < slotTowers.length; i++) {
+            var point = this._getSlotPlacementPoint(slot, i, false);
+            slotTowers[i].gridY = i;
+            slotTowers[i].setPosition(point.x, point.y);
+            slotTowers[i].setDepth(30 + i);
+        }
+        this.slotOccupancy[slotIndex] = slotTowers.length;
+    },
+
+    _updateTowerGradeScore: function() {
+        var totalGs = 0, gsCount = 0;
+        this.towers.forEach(function(tower) {
+            var gs = (tower.unitData && tower.unitData.gradeScore) ? tower.unitData.gradeScore : 0;
+            if (gs > 0) { totalGs += gs; gsCount++; }
+        });
+        if (this.hud && this.hud.updateGradeScore) {
+            this.hud.updateGradeScore(gsCount > 0 ? Math.round(totalGs / gsCount) : 0);
+        }
+    },
+
+    consumeNormalTowersForSynthesis: function() {
+        var normalTowers = this.towers.filter(function(tower) {
+            return this._isSynthesisNormalTower(tower);
+        }, this);
+        if (normalTowers.length < 3) return false;
+
+        var consumed = normalTowers.slice(0, 3);
+        var affectedSlots = {};
+        for (var i = 0; i < consumed.length; i++) {
+            var tower = consumed[i];
+            affectedSlots[tower.gridX] = true;
+            if (Game.DamageTracker) Game.DamageTracker.unregisterTower(tower.towerId);
+            tower.destroy();
+        }
+        this.towers = this.towers.filter(function(tower) { return consumed.indexOf(tower) === -1; });
+        Object.keys(affectedSlots).forEach(function(slotIndex) {
+            this._compactTowerSlot(Number(slotIndex));
+        }, this);
+        this._updateTowerGradeScore();
+        this._drawAvailableSlots();
+        if (this.gachaUI && this.gachaUI.updateSynthesisAvailability) {
+            this.gachaUI.updateSynthesisAvailability();
+        }
+        return true;
+    },
+
+    _autoPlaceTower: function(unitData, options) {
+        // 모서리 적합 타워만 제한된 모서리 슬롯을 사용한다.
+        // 나머지는 바깥 링의 12시부터 반시계 방향으로 배치하며 모서리를 건너뛴다.
+        var slotIndex = this._selectAutoPlacementSlot(unitData);
 
         if (slotIndex === -1) {
             // ── 전체 가득 참: 뽑기 롤백 ──
-            Game.EconomySystem.addGold(Game.Config.GACHA_COST);
-            this.events.emit('gachaRollback');
+            if (!options || options.refundOnFailure !== false) {
+                Game.EconomySystem.addGold(Game.Config.GACHA_COST);
+                this.events.emit('gachaRollback');
+            }
             if (!this._noSlotWarnCooldown) {
                 this._showNoSlotWarning();
                 this._noSlotWarnCooldown = true;
                 var selfW = this;
                 this.time.delayedCall(2000, function() { selfW._noSlotWarnCooldown = false; });
             }
-            return;
+            return false;
         }
 
         var slot     = this.towerSlots[slotIndex];
         var occCount = this.slotOccupancy[slotIndex] || 0;
 
-        // ── 2x2 사분면 배치 로직 (4개 최대) ──
-        // 슬롯을 좌상/우상/좌하/우하 4등분, 각 사분면 중심에 ±15% 범위 내 랜덤 배치
-        var slotSize = Game.Config.TOWER_PLACEMENT.SLOT_SIZE; // 34px
-        var qOff   = slotSize * 0.25;        // 사분면 중심 오프셋 = 8.5px
-        var jitter = slotSize * 0.075;       // ±15% 범위의 절반 = ±2.55px
-
-        // occCount 0~3 순서로 사분면 할당
-        var QUADS = [
-            { x: -qOff, y: -qOff },  // 0: 좌상 (TL)
-            { x:  qOff, y: -qOff },  // 1: 우상 (TR)
-            { x: -qOff, y:  qOff },  // 2: 좌하 (BL)
-            { x:  qOff, y:  qOff }   // 3: 우하 (BR)
-        ];
-        var quad = QUADS[occCount % 4];
-        var dx = quad.x + (Math.random() * 2 - 1) * jitter;
-        var dy = quad.y + (Math.random() * 2 - 1) * jitter;
-
-        // 배치 좌표 (슬롯 중심 + 사분면 오프셋 + 랜덤 지터)
-        var rawX = slot.x + dx;
-        var rawY = slot.y + dy;
-
-        // ── 경로 침범 방지 클램핑 ──
-        var tX = Math.max(this._towerAreaL, Math.min(this._towerAreaR, rawX));
-        var tY = Math.max(this._towerAreaT, Math.min(this._towerAreaB, rawY));
+        var placementPoint = this._getSlotPlacementPoint(slot, occCount, true);
+        var tX = placementPoint.x;
+        var tY = placementPoint.y;
 
         // 타워 생성
         var tower = new Game.Tower(this, tX, tY, unitData);
@@ -1794,15 +2275,12 @@ Game.GameScene = new Phaser.Class({
         }
         this.slotOccupancy[slotIndex] = occCount + 1;
 
-        // HUD 등급 점수 갱신
-        var totalGs = 0, gsCount = 0;
-        this.towers.forEach(function(t) {
-            var gs = (t.unitData && t.unitData.gradeScore) ? t.unitData.gradeScore : 0;
-            if (gs > 0) { totalGs += gs; gsCount++; }
-        });
-        if (this.hud && this.hud.updateGradeScore) {
-            this.hud.updateGradeScore(gsCount > 0 ? Math.round(totalGs / gsCount) : 0);
+        if (this.devSimMode && this._simDiagnostics) {
+            this._simDiagnostics.coverageSum += this._calcPathCoverageAt(tX, tY, unitData.range || 120);
+            this._simDiagnostics.coverageCount++;
         }
+
+        this._updateTowerGradeScore();
 
         // 배치 애니메이션
         tower.setScale(0);
@@ -1833,6 +2311,10 @@ Game.GameScene = new Phaser.Class({
 
         // 슬롯 인디케이터 갱신
         this._drawAvailableSlots();
+        if (this.gachaUI && this.gachaUI.updateSynthesisAvailability) {
+            this.gachaUI.updateSynthesisAvailability();
+        }
+        return true;
     },
     
     _showNoSlotWarning: function() {
@@ -1861,10 +2343,7 @@ Game.GameScene = new Phaser.Class({
         if (this.devSimMode) {
             // ★ 최우선: 자동 재시작 보장 (아래 코드에서 에러가 나도 리로드는 반드시 실행)
             try {
-                localStorage.setItem('rtd_simAutoRestart', '1');
-                if (this.simId) {
-                    localStorage.setItem('rtd_simAutoRestart_' + this.simId, '1');
-                }
+                sessionStorage.setItem('rtd_simAutoRestart_' + this.simInstanceId, '1');
             } catch(e) {}
             var reloadTimer = window.setTimeout(function() {
                 window.location.reload();
@@ -1873,6 +2352,12 @@ Game.GameScene = new Phaser.Class({
             // ── 데이터 수집 ──
             var currentRound = 0;
             try { currentRound = this.waveSystem ? this.waveSystem.getCurrentRound() : 0; } catch(e) {}
+            var failureReason = victory ? 'clear' : (this._simFailureReason ||
+                (this._simActiveWave && this._simActiveWave.isBoss ? 'boss_life' : 'normal_life'));
+            var failureCategory = victory ? 'clear' :
+                (failureReason.indexOf('boss_') === 0 ? 'boss' : 'normal');
+            var finalLives = 0;
+            try { finalLives = Game.EconomySystem.getLives(); } catch(e) {}
             var playTimeSec = this._playStartTime ? Math.floor((Date.now() - this._playStartTime) / 1000) : 0;
             var simStats = { total: 0, clears: 0, rate: 0, avgFail: 0, avgTime: 0, thisTime: playTimeSec,
                              avgGsClear: 0, avgGsFail: 0 };
@@ -1884,6 +2369,17 @@ Game.GameScene = new Phaser.Class({
             try {
                 var resultsKey = this.simResultsKey;
                 var results = JSON.parse(localStorage.getItem(resultsKey) || '[]');
+                var simScene = this;
+                var simHpAverages = {};
+                ['early', 'mid', 'late'].forEach(function(group) {
+                    var values = simScene._simRoundLives[group] || [];
+                    if (values.length > 0) {
+                        simHpAverages[group] = Math.round(
+                            values.reduce(function(sum, value) { return sum + value; }, 0) /
+                            values.length * 10
+                        ) / 10;
+                    }
+                });
                 var totalGradeScore = 0, towerCount = 0;
                 if (this.towers) {
                     this.towers.forEach(function(t) {
@@ -1892,8 +2388,23 @@ Game.GameScene = new Phaser.Class({
                         if (gs > 0) towerCount++;
                     });
                 }
+                // HUD의 ★ 점수와 동일한 평균 등급 점수로 기록한다.
                 var avgGradeScore = towerCount > 0 ? Math.round(totalGradeScore / towerCount) : 0;
-                results.push({ win: victory, round: currentRound, ts: Date.now(), time: playTimeSec, gs: avgGradeScore });
+                var diagnosticCoverageCount = this._simDiagnostics.coverageCount || 0;
+                var diagnostics = {
+                    gachaCount: this._simDiagnostics.gachaCount || 0,
+                    synthesisCount: this._simDiagnostics.synthesisCount || 0,
+                    finalTowerCount: towerCount,
+                    avgRoundStartDps: this._simDiagnostics.roundStartDpsCount > 0
+                        ? Math.round(this._simDiagnostics.roundStartDpsSum /
+                            this._simDiagnostics.roundStartDpsCount) : 0,
+                    avgPathCoverage: diagnosticCoverageCount > 0
+                        ? Math.round(this._simDiagnostics.coverageSum / diagnosticCoverageCount * 10) / 10 : 0
+                };
+                results.push({ win: victory, round: currentRound, ts: Date.now(), time: playTimeSec,
+                    gs: avgGradeScore, hpAvg: simHpAverages,
+                    failCategory: failureCategory, failReason: failureReason,
+                    failLives: victory ? null : finalLives, diagnostics: diagnostics });
                 if (results.length > 9999) results = results.slice(-9999);
                 localStorage.setItem(resultsKey, JSON.stringify(results));
 
@@ -2186,7 +2697,18 @@ Game.GameScene = new Phaser.Class({
     
     _createSimStatsDisplay: function() {
         var results = [];
-        try { results = JSON.parse(localStorage.getItem(this.simResultsKey) || '[]'); } catch(e) {}
+        // 메뉴/대시보드와 동일하게 모든 시뮬레이션 인스턴스의 기록을 합산한다.
+        // 현재 탭의 simResultsKey는 탭별 난수 ID이므로 단일 키만 읽으면
+        // 다른 탭에서 누적된 개발 모드 기록이 인게임에서 0으로 표시된다.
+        try {
+            for (var keyIndex = 0; keyIndex < localStorage.length; keyIndex++) {
+                var resultKey = localStorage.key(keyIndex);
+                if (!resultKey || resultKey.indexOf('rtd_simResults') !== 0) continue;
+                var parsedResults = JSON.parse(localStorage.getItem(resultKey) || '[]');
+                if (Array.isArray(parsedResults)) results = results.concat(parsedResults);
+            }
+        } catch(e) {}
+        results.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
         
         var total  = results.length;
         var wins   = results.filter(function(r){ return r.win; });
@@ -2208,30 +2730,56 @@ Game.GameScene = new Phaser.Class({
         var avgGsFail  = failsWithGs.length > 0
             ? Math.round(failsWithGs.reduce(function(a,r){ return a+r.gs; },0) / failsWithGs.length) : 0;
 
+        var hpSums = { early: 0, mid: 0, late: 0 };
+        var hpCounts = { early: 0, mid: 0, late: 0 };
+        results.forEach(function(r) {
+            if (!r.hpAvg) return;
+            ['early', 'mid', 'late'].forEach(function(group) {
+                if (typeof r.hpAvg[group] === 'number') {
+                    hpSums[group] += r.hpAvg[group];
+                    hpCounts[group]++;
+                }
+            });
+        });
+        var formatHp = function(group) {
+            return hpCounts[group] > 0
+                ? (Math.round(hpSums[group] / hpCounts[group] * 10) / 10).toFixed(1)
+                : '-';
+        };
+
         var panelX = 10;
         var panelY = 300;
 
         // 배경 박스
         var bg = this.add.graphics().setDepth(998);
         bg.fillStyle(0x0a0a0f, 0.75);
-        bg.fillRoundedRect(panelX - 4, panelY - 4, 230, 118, 6);
+        bg.fillRoundedRect(panelX - 4, panelY - 4, 230, 154, 6);
         bg.lineStyle(1, 0x333355, 0.6);
-        bg.strokeRoundedRect(panelX - 4, panelY - 4, 230, 118, 6);
+        bg.strokeRoundedRect(panelX - 4, panelY - 4, 230, 154, 6);
 
         var txtTotal = this.add.text(panelX, panelY,      '총 실행: ' + total + '회',                                                 { fontSize: '13px', fontFamily: 'Oxanium', color: '#AAAAAA' });
         var txtClear = this.add.text(panelX, panelY + 18, '클리어: ' + clears + '회',                                                 { fontSize: '13px', fontFamily: 'Oxanium', color: '#44FF44', fontStyle: 'bold' });
         var txtRate  = this.add.text(panelX, panelY + 36, '클리어율: ' + rate + '%',                                                  { fontSize: '16px', fontFamily: 'Oxanium', color: '#FF6600', fontStyle: 'bold' });
         var txtAvg   = this.add.text(panelX, panelY + 60, '실패 평균: R' + (avgFail || '-') + ' | 평균시간: ' + avgTimeStr,          { fontSize: '12px', fontFamily: 'Oxanium', color: '#55CC55' });
+        var txtHp    = this.add.text(panelX, panelY + 78,
+            '생명력 평균  R2-10: ' + formatHp('early') + '  R11-30: ' + formatHp('mid') + '  R31-50: ' + formatHp('late'),
+            { fontSize: '8px', fontFamily: 'Oxanium', color: '#AADDFF' });
+        var normalFails = fails.filter(function(r) { return r.failCategory === 'normal'; }).length;
+        var bossFails = fails.filter(function(r) { return r.failCategory === 'boss'; }).length;
+        var bossTimeouts = fails.filter(function(r) { return r.failReason === 'boss_timeout'; }).length;
+        var txtFailType = this.add.text(panelX, panelY + 96,
+            '게임오버  일반: ' + normalFails + '  보스: ' + bossFails + '  (타임아웃 ' + bossTimeouts + ')',
+            { fontSize: '9px', fontFamily: 'Oxanium', color: '#FFAA66' });
 
         // 구분선
         var divG = this.add.graphics().setDepth(999);
         divG.lineStyle(1, 0x334455, 0.5);
-        divG.lineBetween(panelX - 4, panelY + 78, panelX + 226, panelY + 78);
+        divG.lineBetween(panelX - 4, panelY + 112, panelX + 226, panelY + 112);
 
-        var txtGsClear = this.add.text(panelX, panelY + 83,  '🏆 클리어 평균점수: ' + (avgGsClear > 0 ? avgGsClear.toLocaleString() : '게임 축적 필요'), { fontSize: '11px', fontFamily: 'Oxanium', color: '#44DDFF' });
-        var txtGsFail  = this.add.text(panelX, panelY + 99,  '💀 오버 평균점수: '   + (avgGsFail  > 0 ? avgGsFail.toLocaleString()  : '게임 축적 필요'), { fontSize: '11px', fontFamily: 'Oxanium', color: '#FF9944' });
+        var txtGsClear = this.add.text(panelX, panelY + 117,  '🏆 클리어 평균점수: ' + (avgGsClear > 0 ? avgGsClear.toLocaleString() : '게임 축적 필요'), { fontSize: '11px', fontFamily: 'Oxanium', color: '#44DDFF' });
+        var txtGsFail  = this.add.text(panelX, panelY + 133,  '💀 오버 평균점수: '   + (avgGsFail  > 0 ? avgGsFail.toLocaleString()  : '게임 축적 필요'), { fontSize: '11px', fontFamily: 'Oxanium', color: '#FF9944' });
 
-        this.add.container(0, 0, [txtTotal, txtClear, txtRate, txtAvg, txtGsClear, txtGsFail]).setDepth(999);
+        this.add.container(0, 0, [txtTotal, txtClear, txtRate, txtAvg, txtHp, txtGsClear, txtGsFail]).setDepth(999);
     }
 });
 
